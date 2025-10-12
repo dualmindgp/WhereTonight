@@ -1,0 +1,20 @@
+<svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff1493;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00ffff;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Fondo -->
+  <rect width="192" height="192" rx="42" fill="#0f0f1e"/>
+  
+  <!-- Pin de ubicación con gradiente -->
+  <path d="M96 40 C75 40 58 57 58 78 C58 108 96 140 96 140 C96 140 134 108 134 78 C134 57 117 40 96 40 Z" fill="url(#grad1)"/>
+  
+  <!-- Círculo interior del pin -->
+  <circle cx="96" cy="78" r="12" fill="#0f0f1e"/>
+  
+  <!-- Texto "W" -->
+  <text x="96" y="170" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="url(#grad1)" text-anchor="middle">W</text>
+</svg>

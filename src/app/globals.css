@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos mínimos para el mapa */
+.maplibregl-map {
+  font: 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+  overflow: hidden;
+  position: relative;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+.maplibregl-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.maplibregl-ctrl-top-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 10px;
+}
+
+/* Clases utilitarias para efectos neón */
+.glow-text-pink {
+  text-shadow: 0 0 5px #FF00FF, 0 0 20px #FF00FF;
+}
+
+.glow-text-blue {
+  text-shadow: 0 0 5px #00BFFF, 0 0 20px #00BFFF;
+}
+
+.glow-text-cyan {
+  text-shadow: 0 0 5px #00FFFF, 0 0 20px #00FFFF;
+}
+
+.neon-border-pink {
+  border: 1px solid #FF00FF;
+  box-shadow: 0 0 5px #FF00FF, 0 0 20px #FF00FF;
+}
+
+.neon-border-blue {
+  border: 1px solid #00BFFF;
+  box-shadow: 0 0 5px #00BFFF, 0 0 20px #00BFFF;
+}
+
+.neon-border-cyan {
+  border: 1px solid #00FFFF;
+  box-shadow: 0 0 5px #00FFFF, 0 0 20px #00FFFF;
+}
+
+.night-gradient {
+  background: linear-gradient(135deg, #0A0A1A 0%, #16163A 100%);
+}
+
+:root {
+  --background: #0A0A1A;
+  --foreground: #FFFFFF;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
