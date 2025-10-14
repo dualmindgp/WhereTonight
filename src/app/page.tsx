@@ -314,23 +314,7 @@ export default function Home() {
         </div>
         
         {navTab === 'search' && (
-          <div className="flex-1 flex flex-col relative">
-            {/* TopNavBar como overlay en búsqueda también */}
-            <div className="absolute top-0 left-0 right-0 z-10">
-              <TopNavBar 
-                onCityChange={(location) => {
-                  console.log(`City changed: ${location.name}`, location)
-                  // En la vista de búsqueda también podríamos hacer algo con la ubicación
-                  // Por ahora solo lo logueamos
-                }}
-                onSearchFriends={() => console.log('Search friends clicked')}
-                onFilterClick={() => setShowFilterModal(true)}
-              />
-            </div>
-            <div className="pt-20">
-              <SearchScreen venues={displayVenues} onVenueClick={handleVenueClick} />
-            </div>
-          </div>
+          <SearchScreen venues={displayVenues} onVenueClick={handleVenueClick} />
         )}
         
         {navTab === 'social' && (

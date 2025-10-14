@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { Search, Users, Star, DollarSign } from 'lucide-react'
 import { VenueWithCount } from '@/lib/database.types'
 import { useLanguage } from '@/contexts/LanguageContext'
+import TwoStepSearchBar from './TwoStepSearchBar'
 
 interface SearchScreenProps {
   venues: VenueWithCount[]
@@ -12,15 +13,36 @@ interface SearchScreenProps {
 
 export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps) {
   const { t } = useLanguage()
-  const [searchQuery, setSearchQuery] = useState('')
+  const [venueSearchQuery, setVenueSearchQuery] = useState('')
+  const [selectedCity, setSelectedCity] = useState<{ name: string; lat: number; lng: number } | null>(null)
+  const [activeFilter, setActiveFilter] = useState<'nearby' | 'open' | 'rated' | null>(null)
+
+  // Filtrar venues por ciudad (usando proximidad geográfica)
+  const venuesByCity = useMemo(() => {
+    if (!selectedCity) return []
+
+    // Filtrar venues dentro de un radio de ~50km de la ciudad seleccionada
+    const RADIUS_KM = 50
+    const filtered = venues.filter(venue => {
+      const distance = getDistanceFromLatLonInKm(
+        selectedCity.lat,
+        selectedCity.lng,
+        venue.lat,
+        venue.lng
+      )
+      return distance <= RADIUS_KM
+    })
+
+    return filtered
+  }, [venues, selectedCity])
 
   // Filtrar y ordenar venues
   const filteredVenues = useMemo(() => {
-    let filtered = venues
+    let filtered = venuesByCity
 
-    // Filtrar por búsqueda
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
+    // Filtrar por búsqueda de venue
+    if (venueSearchQuery.trim()) {
+      const query = venueSearchQuery.toLowerCase()
       filtered = filtered.filter(v => 
         v.name.toLowerCase().includes(query) ||
         v.address?.toLowerCase().includes(query) ||
@@ -28,9 +50,65 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
       )
     }
 
-    // Ordenar por popularidad (count_today descendente)
-    return filtered.sort((a, b) => (b.count_today || 0) - (a.count_today || 0))
-  }, [venues, searchQuery])
+    // Aplicar filtros rápidos
+    if (activeFilter === 'nearby' && selectedCity) {
+      // Ordenar por distancia (más cercanos primero)
+      filtered = [...filtered].sort((a, b) => {
+        const distA = getDistanceFromLatLonInKm(selectedCity.lat, selectedCity.lng, a.lat, a.lng)
+        const distB = getDistanceFromLatLonInKm(selectedCity.lat, selectedCity.lng, b.lat, b.lng)
+        return distA - distB
+      })
+    } else if (activeFilter === 'open') {
+      // Filtrar solo los que tienen opening_hours (simplificado)
+      filtered = filtered.filter(v => v.opening_hours)
+    } else if (activeFilter === 'rated') {
+      // Ordenar por rating (mejor valorados primero)
+      filtered = [...filtered].sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    } else {
+      // Ordenar por popularidad (count_today descendente) por defecto
+      filtered = [...filtered].sort((a, b) => (b.count_today || 0) - (a.count_today || 0))
+    }
+
+    return filtered
+  }, [venuesByCity, venueSearchQuery, activeFilter, selectedCity])
+
+  // Función para calcular distancia entre dos puntos geográficos
+  function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371 // Radio de la Tierra en km
+    const dLat = deg2rad(lat2 - lat1)
+    const dLon = deg2rad(lon2 - lon1)
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    const d = R * c
+    return d
+  }
+
+  function deg2rad(deg: number) {
+    return deg * (Math.PI / 180)
+  }
+
+  const handleCitySelected = (city: { name: string; lat: number; lng: number }) => {
+    setSelectedCity(city)
+    setVenueSearchQuery('')
+    setActiveFilter(null)
+  }
+
+  const handleVenueSearch = (query: string) => {
+    setVenueSearchQuery(query)
+  }
+
+  const handleFilterChange = (filter: 'nearby' | 'open' | 'rated' | null) => {
+    setActiveFilter(filter)
+  }
+
+  const handleClear = () => {
+    setSelectedCity(null)
+    setVenueSearchQuery('')
+    setActiveFilter(null)
+  }
 
   const renderPriceLevel = (level?: number | null) => {
     if (!level) return null
@@ -48,29 +126,37 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
 
   return (
     <div className="flex-1 flex flex-col bg-dark-primary">
-      {/* Search header */}
-      <div className="p-4 bg-dark-card border-b border-neon-blue/20">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
-          <input
-            type="text"
-            placeholder={t('common.searchPlaceholder')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-dark-secondary text-text-light border border-neon-blue/30 rounded-lg focus:outline-none focus:border-neon-blue"
-          />
-        </div>
-        <div className="mt-2 text-sm text-text-secondary">
-          {filteredVenues.length} {t('common.venuesFound')}
-        </div>
-      </div>
+      {/* Two-Step Search Bar */}
+      <TwoStepSearchBar
+        onCitySelected={handleCitySelected}
+        onVenueSearch={handleVenueSearch}
+        onFilterChange={handleFilterChange}
+        onClear={handleClear}
+        resultsCount={filteredVenues.length}
+      />
 
       {/* Venues list */}
       <div className="flex-1 overflow-y-auto">
-        {filteredVenues.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-secondary">
+        {!selectedCity ? (
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary px-8 text-center">
+            <div className="mb-6">
+              <Search className="w-20 h-20 opacity-40 mx-auto" />
+            </div>
+            <h2 className="text-xl font-bold text-text-light mb-3">Busca una ciudad</h2>
+            <p className="text-sm text-text-secondary max-w-sm leading-relaxed">
+              Empieza escribiendo el nombre de una ciudad para descubrir los mejores locales
+            </p>
+          </div>
+        ) : filteredVenues.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary px-6 text-center">
             <Search className="w-16 h-16 mb-4 opacity-50" />
-            <p>{t('common.noActivity')}</p>
+            <p className="text-lg font-medium text-text-light mb-2">No se encontraron locales</p>
+            <p className="text-sm">
+              {venueSearchQuery 
+                ? `No hay resultados para "${venueSearchQuery}" en ${selectedCity.name}`
+                : `No hay locales disponibles en ${selectedCity.name}`
+              }
+            </p>
           </div>
         ) : (
           <div className="p-4 space-y-3">

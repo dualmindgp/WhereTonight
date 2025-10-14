@@ -1,4 +1,4 @@
--- Actualizar tabla profiles con nuevos campos
+-- Actualizar tabla profiles con nuevos camposssssssssssssssssssss
 ALTER TABLE IF EXISTS public.profiles
 ADD COLUMN IF NOT EXISTS username text UNIQUE,
 ADD COLUMN IF NOT EXISTS avatar_url text,
