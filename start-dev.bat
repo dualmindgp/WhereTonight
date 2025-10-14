@@ -1,0 +1,3 @@
+@echo off
+echo Iniciando servidor de desarrollo de WhereTonight...
+npm run dev

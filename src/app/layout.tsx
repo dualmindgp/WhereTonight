@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   title: "WhereTonight - Tu plan para esta noche",
   description: "Descubre dónde van los estudiantes esta noche en Varsovia",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/icon-192.svg",
+    shortcut: "/favicon.ico",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

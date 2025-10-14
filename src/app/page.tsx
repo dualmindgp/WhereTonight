@@ -22,6 +22,7 @@ import ProfileScreenV2 from '@/components/ProfileScreenV2'
 import SettingsScreen from '@/components/SettingsScreen'
 import FavoritesScreen from '@/components/FavoritesScreen'
 import HistoryScreen from '@/components/HistoryScreen'
+import SplashScreen from '@/components/SplashScreen'
 import useSwipe from '@/hooks/useSwipe'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { MapPin, Edit } from 'lucide-react'
@@ -43,6 +44,7 @@ export default function Home() {
   const [filters, setFilters] = useState<FilterOptions>({ priceRange: [], minRating: 0, sortBy: 'popularity' })
   const [filteredVenues, setFilteredVenues] = useState<VenueWithCount[]>([])
   const [navTab, setNavTab] = useState<string>('home')
+  const [showSplash, setShowSplash] = useState(true)
   const { t } = useLanguage()
   
   // Referencia al contenedor principal para los gestos
@@ -265,7 +267,11 @@ export default function Home() {
   }
 
   return (
-    <div ref={mainContainerRef} className="h-screen flex flex-col bg-dark-primary">
+    <>
+      {/* Splash Screen como overlay */}
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+      
+      <div ref={mainContainerRef} className="h-screen flex flex-col bg-dark-primary">
       {/* Main content */}
       <div className="flex-1 flex flex-col bg-gradient-to-b from-dark-primary to-dark-secondary relative">
         {/* Mantener el mapa montado pero oculto cuando no está en 'home' */}
@@ -287,6 +293,10 @@ export default function Home() {
                 }}
                 onSearchFriends={() => console.log('Search friends clicked')}
                 onFilterClick={() => setShowFilterModal(true)}
+                topVenues={displayVenues
+                  .filter(v => v.count_today > 0)
+                  .slice(0, 6)
+                  .map(v => ({ name: v.name, count: v.count_today }))}
               />
             </div>
           )}
@@ -412,5 +422,6 @@ export default function Home() {
         />
       )}
     </div>
+    </>
   )
 }

@@ -211,16 +211,16 @@ export default function ProfileScreenV2({
                     <img
                       src={profile.avatar_url}
                       alt={username}
-                      className="w-28 h-28 rounded-2xl object-cover border-4 border-neon-purple/40 transition-all group-hover:border-neon-pink"
+                      className="w-28 h-28 rounded-full object-cover border-4 border-neon-purple/40 transition-all group-hover:border-neon-pink"
                     />
                   ) : (
-                    <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-neon-purple to-neon-pink flex items-center justify-center text-5xl font-bold text-white group-hover:opacity-90 transition-opacity">
+                    <div className="w-28 h-28 rounded-full bg-gradient-to-br from-neon-purple to-neon-pink flex items-center justify-center text-5xl font-bold text-white group-hover:opacity-90 transition-opacity">
                       {username.charAt(0).toUpperCase()}
                     </div>
                   )}
                   
                   {/* Overlay con cámara */}
-                  <div className="absolute inset-0 rounded-2xl bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 rounded-full bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     {avatarUploading ? (
                       <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
@@ -238,10 +238,6 @@ export default function ProfileScreenV2({
                 />
               </button>
 
-              {/* Email debajo del avatar */}
-              <p className="text-text-secondary text-xs text-center break-all max-w-[112px]">
-                @{email}
-              </p>
             </div>
 
             {/* Columna derecha: Nombre + Botón editar */}
