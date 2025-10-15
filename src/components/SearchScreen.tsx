@@ -224,17 +224,22 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
                   <div className="w-24 h-24 flex-shrink-0 relative bg-dark-secondary">
                     {venue.photo_ref ? (
                       <img
-                        src={`/api/photo?ref=${venue.photo_ref}`}
+                        src={`/api/photo?ref=${venue.photo_ref}&type=${venue.type}`}
                         alt={venue.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzFhMWEyZSIvPjwvc3ZnPg=='
+                          // Fallback automático desde el servidor
+                          if (!e.currentTarget.src.includes('fallback')) {
+                            e.currentTarget.src = `/api/photo?type=${venue.type}&fallback=true`
+                          }
                         }}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="text-4xl">🎉</div>
-                      </div>
+                      <img
+                        src={`/api/photo?type=${venue.type}&fallback=true`}
+                        alt={venue.name}
+                        className="w-full h-full object-cover"
+                      />
                     )}
                     {/* Count badge */}
                     {(venue.count_today || 0) > 0 && (

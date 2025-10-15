@@ -4,22 +4,58 @@ import { NextRequest, NextResponse } from 'next/server'
 const photoCache = new Map<string, { data: Buffer; contentType: string; timestamp: number }>()
 const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000 // 7 días en milisegundos
 
+// Imágenes de fallback según tipo de venue
+const FALLBACK_IMAGES = {
+  club: 'https://images.unsplash.com/photo-1566737236500-c8ac43014a67?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80',
+  bar: 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80',
+  other: 'https://images.unsplash.com/photo-1528605248644-14dd04022da1?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80'
+}
+
+async function fetchFallbackImage(type: string = 'other'): Promise<{ buffer: Buffer; contentType: string }> {
+  const fallbackUrl = FALLBACK_IMAGES[type as keyof typeof FALLBACK_IMAGES] || FALLBACK_IMAGES.other
+  const response = await fetch(fallbackUrl)
+  const buffer = Buffer.from(await response.arrayBuffer())
+  return { buffer, contentType: 'image/jpeg' }
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const photoRef = searchParams.get('ref')
+  const venueType = searchParams.get('type') || 'other'
 
   if (!photoRef) {
-    return NextResponse.json({ error: 'Photo reference required' }, { status: 400 })
+    // Devolver imagen de fallback en lugar de error
+    try {
+      const { buffer, contentType } = await fetchFallbackImage(venueType)
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=604800',
+        },
+      })
+    } catch (error) {
+      console.error('Error fetching fallback image:', error)
+      return new NextResponse('Image not found', { status: 404 })
+    }
   }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
   
   if (!apiKey) {
-    console.error('Google Maps API key not found in environment')
-    return new NextResponse(JSON.stringify({ error: 'API key not configured' }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    })
+    console.warn('Google Maps API key not configured, using fallback image')
+    // Devolver imagen de fallback
+    try {
+      const { buffer, contentType } = await fetchFallbackImage(venueType)
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=604800',
+        },
+      })
+    } catch (error) {
+      console.error('Error fetching fallback image:', error)
+      return new NextResponse('Image not found', { status: 404 })
+    }
   }
 
   // Verificar cache
@@ -41,13 +77,14 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       console.error('Google Places API error:', response.status)
-      
-      // Devolver un error claro en lugar de una imagen corrupta
-      return NextResponse.json({ 
-        error: 'Google Places API rechazó la petición',
-        status: 403,
-        solution: 'Habilita Places API en Google Cloud Console'
-      }, { status: 403 })
+      // Usar fallback en lugar de devolver error
+      const { buffer, contentType } = await fetchFallbackImage(venueType)
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=604800',
+        },
+      })
     }
 
     const imageBuffer = Buffer.from(await response.arrayBuffer())
@@ -70,12 +107,18 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching photo:', error instanceof Error ? error.message : String(error))
     
-    return new NextResponse(JSON.stringify({ 
-      error: 'Failed to fetch photo',
-      details: error instanceof Error ? error.message : String(error)
-    }), { 
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    })
+    // Devolver imagen de fallback en lugar de error
+    try {
+      const { buffer, contentType } = await fetchFallbackImage(venueType)
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=604800',
+        },
+      })
+    } catch (fallbackError) {
+      console.error('Error fetching fallback image:', fallbackError)
+      return new NextResponse('Image not found', { status: 404 })
+    }
   }
 }

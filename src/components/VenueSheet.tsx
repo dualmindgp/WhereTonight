@@ -225,6 +225,7 @@ export default function VenueSheet({
             <PhotoCarousel 
               photos={venue.photo_refs || (venue.photo_ref ? [venue.photo_ref] : [])} 
               venueName={venue.name}
+              venueType={venue.type}
             />
           </div>
           

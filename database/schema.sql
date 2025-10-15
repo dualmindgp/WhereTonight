@@ -19,6 +19,13 @@ create table if not exists public.venues (
   avg_price_text text,          -- ejemplo: "Drinks ~25-35 PLN"
   tickets_url text,             -- link externo para entradas si aplica
   maps_url text,                -- link a Google Maps
+  place_id text unique,         -- Google Places ID
+  rating double precision,      -- Rating de Google (0-5)
+  price_level integer,          -- Nivel de precio (0-4)
+  photo_ref text,               -- Referencia de foto principal de Google Places
+  photo_refs text[],            -- Array de referencias de fotos
+  website text,                 -- URL del sitio web del venue
+  opening_hours text,           -- Horarios de apertura
   is_active boolean default true,
   created_at timestamptz default now()
 );
