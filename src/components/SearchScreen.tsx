@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Search, Users, Star, DollarSign } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Search, Users, Star, DollarSign, MapPin } from 'lucide-react'
 import { VenueWithCount } from '@/lib/database.types'
 import { useLanguage } from '@/contexts/LanguageContext'
 import TwoStepSearchBar from './TwoStepSearchBar'
@@ -16,6 +16,46 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
   const [venueSearchQuery, setVenueSearchQuery] = useState('')
   const [selectedCity, setSelectedCity] = useState<{ name: string; lat: number; lng: number } | null>(null)
   const [activeFilter, setActiveFilter] = useState<'nearby' | 'open' | 'rated' | null>(null)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const distanceRef = userLocation || selectedCity
+
+  // Distancias memoizadas por venue.id contra la referencia (userLocation o ciudad)
+  const distancesById = useMemo(() => {
+    if (!distanceRef) return {} as Record<string, number>
+    const map: Record<string, number> = {}
+    for (const v of venues) {
+      if (Number.isFinite(v.lat) && Number.isFinite(v.lng)) {
+        map[v.id] = getDistanceFromLatLonInKm(distanceRef.lat, distanceRef.lng, v.lat, v.lng)
+      } else {
+        map[v.id] = Number.POSITIVE_INFINITY
+      }
+    }
+    return map
+  }, [venues, distanceRef])
+
+  // Solicitar ubicación del usuario al montar el componente
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          })
+        },
+        (error) => {
+          console.log('Error obteniendo ubicación:', error)
+        }
+      )
+    }
+  }, [])
+
+  // Si tenemos ubicación del usuario y una ciudad seleccionada, activar automáticamente el filtro "Cerca de mí"
+  useEffect(() => {
+    if (userLocation && selectedCity && activeFilter !== 'nearby') {
+      setActiveFilter('nearby')
+    }
+  }, [userLocation, selectedCity, activeFilter])
 
   // Filtrar venues por ciudad (usando proximidad geográfica)
   const venuesByCity = useMemo(() => {
@@ -51,13 +91,16 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
     }
 
     // Aplicar filtros rápidos
-    if (activeFilter === 'nearby' && selectedCity) {
-      // Ordenar por distancia (más cercanos primero)
-      filtered = [...filtered].sort((a, b) => {
-        const distA = getDistanceFromLatLonInKm(selectedCity.lat, selectedCity.lng, a.lat, a.lng)
-        const distB = getDistanceFromLatLonInKm(selectedCity.lat, selectedCity.lng, b.lat, b.lng)
-        return distA - distB
-      })
+    if (activeFilter === 'nearby') {
+      // Ordenar por distancia (más cercanos primero) usando el mapa de distancias memoizado
+      if (distanceRef) {
+        filtered = [...filtered].sort((a, b) => {
+          const distA = distancesById[a.id] ?? Number.POSITIVE_INFINITY
+          const distB = distancesById[b.id] ?? Number.POSITIVE_INFINITY
+          if (distA === distB) return a.name.localeCompare(b.name)
+          return distA - distB
+        })
+      }
     } else if (activeFilter === 'open') {
       // Filtrar solo los que tienen opening_hours (simplificado)
       filtered = filtered.filter(v => v.opening_hours)
@@ -65,15 +108,25 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
       // Ordenar por rating (mejor valorados primero)
       filtered = [...filtered].sort((a, b) => (b.rating || 0) - (a.rating || 0))
     } else {
-      // Ordenar por popularidad (count_today descendente) por defecto
-      filtered = [...filtered].sort((a, b) => (b.count_today || 0) - (a.count_today || 0))
+      // Por defecto: si tenemos referencia de distancia, ordenar por distancia; si no, por popularidad
+      if (distanceRef) {
+        filtered = [...filtered].sort((a, b) => {
+          const distA = distancesById[a.id] ?? Number.POSITIVE_INFINITY
+          const distB = distancesById[b.id] ?? Number.POSITIVE_INFINITY
+          if (distA === distB) return a.name.localeCompare(b.name)
+          return distA - distB
+        })
+      } else {
+        filtered = [...filtered].sort((a, b) => (b.count_today || 0) - (a.count_today || 0))
+      }
     }
 
     return filtered
-  }, [venuesByCity, venueSearchQuery, activeFilter, selectedCity])
+  }, [venuesByCity, venueSearchQuery, activeFilter, selectedCity, userLocation, distanceRef, distancesById])
 
   // Función para calcular distancia entre dos puntos geográficos
   function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+    if ([lat1, lon1, lat2, lon2].some((n) => !Number.isFinite(n))) return Number.POSITIVE_INFINITY
     const R = 6371 // Radio de la Tierra en km
     const dLat = deg2rad(lat2 - lat1)
     const dLon = deg2rad(lon2 - lon1)
@@ -193,7 +246,7 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
                   </div>
 
                   {/* Info */}
-                  <div className="flex-1 p-3">
+                  <div className="flex-1 p-3 relative">
                     <h3 className="text-text-light font-bold text-lg mb-1">
                       {venue.name}
                     </h3>
@@ -223,12 +276,20 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
                       </span>
                     </div>
 
-                    {/* Today's count text */}
-                    {(venue.count_today || 0) > 0 && (
-                      <p className="mt-2 text-neon-pink text-sm font-medium">
-                        {t('common.today')} {venue.count_today} {t('common.people')}
-                      </p>
-                    )}
+                    {/* Distance - Abajo a la derecha */}
+                    {(() => {
+                      if (!distanceRef) return null
+                      const d = distancesById[venue.id]
+                      if (!Number.isFinite(d)) return null
+                      return (
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1 text-text-secondary text-xs">
+                        <MapPin className="w-3 h-3" />
+                        <span>
+                          {d.toFixed(1)} km
+                        </span>
+                      </div>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>

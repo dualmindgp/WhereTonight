@@ -7,12 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:venues": "tsx scripts/seed-venues.ts"
+    "seed:varsovia": "tsx scripts/seed-varsovia.ts",
+    "seed:madrid": "tsx scripts/seed-madrid.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
     "@types/react-map-gl": "^6.1.7",
-    "framer-motion": "^11.0.0",
+    "framer-motion": "^12.23.24",
     "lucide-react": "^0.260.0",
     "maplibre-gl": "4.7.1",
     "next": "14.2.5",

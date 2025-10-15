@@ -1,9 +1,27 @@
+/**
+ * 🏙️ SEED VARSOVIA - Script para poblar la base de datos con locales de Varsovia
+ * 
+ * 📋 Cómo funciona:
+ * 1. Lee la lista de locales (VENUES_TO_SEARCH)
+ * 2. Busca cada local en Google Places API
+ * 3. Obtiene: fotos, ratings, coordenadas, precios, etc.
+ * 4. Guarda todo en Supabase con upsert (actualiza si existe)
+ * 
+ * 🚀 Para ejecutar: npm run seed:varsovia
+ * 
+ * 📝 Para replicar con otra ciudad:
+ * 1. Copia este archivo y renómbralo (ej: seed-barcelona.ts)
+ * 2. Cambia VENUES_TO_SEARCH con locales de la nueva ciudad
+ * 3. Actualiza locationBias con las coordenadas de la ciudad
+ * 4. Añade el comando en package.json
+ */
+
 import * as dotenv from 'dotenv'
 // Cargar específicamente el archivo .env.local
 dotenv.config({ path: '.env.local' })
 import { createClient } from '@supabase/supabase-js'
 
-// Configuración
+// 📍 CONFIGURACIÓN - Lista de locales a buscar en Varsovia
 const VENUES_TO_SEARCH = [
   'MultiPub "Pod Grubą Kaśką" Warsaw',
   'Teatro Cubano Warsaw',

@@ -129,12 +129,11 @@ export default function ActivityFeed({ onVenueClick, limit, userId }: ActivityFe
                 <span className="font-semibold text-neon-blue">
                   {activity.username || 'Usuario'}
                 </span>{' '}
-                {t('feed.goingTonight')
-                  .replace('{username}', '')
-                  .replace('{venueName}', activity.venue_name)}
+                va a{' '}
                 <span className="font-semibold text-neon-pink">
                   {activity.venue_name}
                 </span>
+                
               </p>
               
               <div className="flex items-center space-x-2 mt-2 text-text-secondary text-sm">
@@ -143,12 +142,18 @@ export default function ActivityFeed({ onVenueClick, limit, userId }: ActivityFe
               </div>
             </div>
 
-            {/* Icon */}
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 rounded-full bg-neon-pink/10 flex items-center justify-center">
+            {/* Icon - Clickeable para ir al local */}
+            <button 
+              className="flex-shrink-0"
+              onClick={(e) => {
+                e.stopPropagation()
+                onVenueClick?.(activity.venue_id)
+              }}
+            >
+              <div className="w-10 h-10 rounded-full bg-neon-pink/10 flex items-center justify-center hover:bg-neon-pink/20 transition-colors">
                 <MapPin className="w-5 h-5 text-neon-pink" />
               </div>
-            </div>
+            </button>
           </div>
         </div>
       ))}

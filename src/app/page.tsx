@@ -330,7 +330,12 @@ export default function Home() {
         )}
         
         {navTab === 'social' && (
-          <SocialFeed />
+          <SocialFeed 
+            onVenueClick={(venueId) => {
+              const venue = venues.find(v => v.id === venueId)
+              if (venue) handleVenueClick(venue)
+            }}
+          />
         )}
         
         {navTab === 'profile' && (

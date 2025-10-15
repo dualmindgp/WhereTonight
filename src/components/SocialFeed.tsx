@@ -17,6 +17,10 @@ interface Post {
   isLiked: boolean
 }
 
+interface SocialFeedProps {
+  onVenueClick?: (venueId: string) => void
+}
+
 // Posts de ejemplo (después se cargarán de Supabase)
 const MOCK_POSTS: Post[] = [
   {
@@ -49,7 +53,7 @@ const MOCK_POSTS: Post[] = [
   }
 ]
 
-export default function SocialFeed() {
+export default function SocialFeed({ onVenueClick }: SocialFeedProps) {
   const { t } = useLanguage()
   const [posts, setPosts] = useState<Post[]>(MOCK_POSTS)
   const [newPostContent, setNewPostContent] = useState('')
@@ -176,7 +180,7 @@ export default function SocialFeed() {
 
       {/* Content - Solo feed de actividades */}
       <div className="p-4">
-        <ActivityFeed />
+        <ActivityFeed onVenueClick={onVenueClick} />
       </div>
     </div>
   )
