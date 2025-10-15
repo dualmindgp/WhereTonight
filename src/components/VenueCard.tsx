@@ -84,7 +84,7 @@ export default function VenueCard({
       return 'bg-dark-secondary border border-neon-blue hover:bg-neon-blue/20 text-text-light shadow-neon-blue'
     }
     if (hasUsedTicketToday) {
-      return 'bg-dark-secondary text-text-muted border border-text-muted/20 cursor-not-allowed'
+      return 'bg-sky-400/20 text-sky-300 border border-sky-400/40 cursor-not-allowed'
     }
     return 'bg-dark-primary border border-neon-cyan hover:bg-dark-primary hover:shadow-neon-cyan hover:border-neon-cyan text-neon-cyan glow-text-cyan font-medium'
   }

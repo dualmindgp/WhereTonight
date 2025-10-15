@@ -107,7 +107,7 @@ export default function AddFriendModal({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 pb-24">
           {selectedTab === 'qr' ? (
             <div className="flex flex-col items-center space-y-4">
               <p className="text-text-secondary text-center text-sm">

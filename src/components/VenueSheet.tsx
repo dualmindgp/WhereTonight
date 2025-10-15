@@ -299,15 +299,9 @@ export default function VenueSheet({
             {/* Botón de guardar */}
             <button
               onClick={handleSaveVenue}
-              className={`
-                py-3 px-4 rounded-lg transition-colors
-                ${isSaved 
-                  ? 'bg-neon-pink text-white' 
-                  : 'bg-dark-secondary text-text-light hover:bg-dark-hover'}
-                flex items-center justify-center
-              `}
+              className="py-3 px-4 rounded-lg transition-colors bg-dark-secondary text-text-light hover:bg-dark-hover flex items-center justify-center"
             >
-              <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+              <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current text-yellow-400' : ''}`} />
             </button>
           </div>
           

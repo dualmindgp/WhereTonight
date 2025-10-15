@@ -10,7 +10,7 @@ import VenueList from '@/components/VenueList'
 import AuthButton from '@/components/AuthButton'
 import TopNavBar from '@/components/TopNavBar'
 import VenueSheet from '@/components/VenueSheet'
-import BottomNavBar from '@/components/BottomNavBar'
+import Dock, { DockItemData } from '@/components/Dock'
 import SearchScreen from '@/components/SearchScreen'
 import SocialFeed from '@/components/SocialFeed'
 import AuthModal from '@/components/AuthModal'
@@ -23,9 +23,10 @@ import SettingsScreen from '@/components/SettingsScreen'
 import FavoritesScreen from '@/components/FavoritesScreen'
 import HistoryScreen from '@/components/HistoryScreen'
 import SplashScreen from '@/components/SplashScreen'
+import FriendsScreen from '@/components/FriendsScreen'
 import useSwipe from '@/hooks/useSwipe'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { MapPin, Edit } from 'lucide-react'
+import { MapPin, Edit, Home as HomeIcon, Search as SearchIcon, User as UserIcon, MessageCircle } from 'lucide-react'
 
 export default function Home() {
   const { venues } = useVenues() // Usar venues desde el context
@@ -40,6 +41,7 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showFriends, setShowFriends] = useState(false)
   const [profile, setProfile] = useState<any>(null)
   const [filters, setFilters] = useState<FilterOptions>({ priceRange: [], minRating: 0, sortBy: 'popularity' })
   const [filteredVenues, setFilteredVenues] = useState<VenueWithCount[]>([])
@@ -356,6 +358,13 @@ export default function Home() {
                 }}
               />
             )
+          ) : showFriends ? (
+            user && (
+              <FriendsScreen 
+                user={user}
+                onBack={() => setShowFriends(false)}
+              />
+            )
           ) : user ? (
             <ProfileScreenV2
               user={user}
@@ -369,6 +378,7 @@ export default function Home() {
               onShowSettings={() => setShowSettings(true)}
               onShowFavorites={() => setShowFavorites(true)}
               onShowHistory={() => setShowHistory(true)}
+              onShowFriends={() => setShowFriends(true)}
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center bg-dark-primary">
@@ -387,10 +397,30 @@ export default function Home() {
           )
         )}
         
-        {/* Bottom Navigation Bar */}
-        <BottomNavBar 
-          activeTab={navTab}
-          onChangeTab={setNavTab}
+        {/* Bottom Dock Navigation */}
+        <Dock 
+          items={[
+            { 
+              label: t('common.home'), 
+              icon: <HomeIcon className={navTab === 'home' ? 'text-neon-cyan' : 'text-text-secondary'} />,
+              onClick: () => setNavTab('home')
+            },
+            { 
+              label: t('common.search'), 
+              icon: <SearchIcon className={navTab === 'search' ? 'text-neon-cyan' : 'text-text-secondary'} />,
+              onClick: () => setNavTab('search')
+            },
+            { 
+              label: t('common.social'), 
+              icon: <MessageCircle className={navTab === 'social' ? 'text-neon-cyan' : 'text-text-secondary'} />,
+              onClick: () => setNavTab('social')
+            },
+            { 
+              label: t('common.profile'), 
+              icon: <UserIcon className={navTab === 'profile' ? 'text-neon-cyan' : 'text-text-secondary'} />,
+              onClick: () => setNavTab('profile')
+            },
+          ]}
         />
       </div>
 

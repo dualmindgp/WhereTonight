@@ -21,6 +21,7 @@ interface ProfileScreenV2Props {
   onShowSettings?: () => void
   onShowFavorites?: () => void
   onShowHistory?: () => void
+  onShowFriends?: () => void
 }
 
 export default function ProfileScreenV2({ 
@@ -31,7 +32,8 @@ export default function ProfileScreenV2({
   onProfileUpdated,
   onShowSettings,
   onShowFavorites,
-  onShowHistory
+  onShowHistory,
+  onShowFriends
 }: ProfileScreenV2Props) {
   const { t, locale } = useLanguage()
   const [showAddFriendModal, setShowAddFriendModal] = useState(false)
@@ -122,6 +124,7 @@ export default function ProfileScreenV2({
   const [streak, setStreak] = useState(0)
   const [uniqueVenues, setUniqueVenues] = useState(0)
   const [friendsCount, setFriendsCount] = useState(0)
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
 
   // Cargar stats desde BD
   useEffect(() => {
@@ -183,6 +186,14 @@ export default function ProfileScreenV2({
           .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
           .eq('status', 'accepted')
         setFriendsCount(friends || 0)
+
+        // 5. Solicitudes pendientes
+        const { count: pendingRequests } = await supabase
+          .from('friendships')
+          .select('*', { count: 'exact', head: true })
+          .eq('friend_id', user.id)
+          .eq('status', 'pending')
+        setPendingRequestsCount(pendingRequests || 0)
       } catch (error) {
         console.error('Error loading stats:', error)
       }
@@ -303,11 +314,19 @@ export default function ProfileScreenV2({
             <div className="text-text-secondary text-sm">Locales<br/>visitados</div>
           </div>
 
-          {/* Amigos */}
-          <div className="bg-dark-card/50 backdrop-blur-sm rounded-2xl p-4 border border-neon-cyan/20">
+          {/* Amigos - Clickeable */}
+          <button 
+            onClick={() => onShowFriends?.()}
+            className="relative bg-dark-card/50 backdrop-blur-sm rounded-2xl p-4 border border-neon-cyan/20 hover:bg-dark-hover transition-colors text-left w-full"
+          >
+            {pendingRequestsCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full border-2 border-dark-primary">
+                {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+              </span>
+            )}
             <div className="text-4xl font-bold text-neon-cyan mb-1">{friendsCount}</div>
             <div className="text-text-secondary text-sm">Amigos</div>
-          </div>
+          </button>
         </div>
 
         {/* Favoritos e Historial */}
