@@ -3,6 +3,8 @@
 import React, { useState } from 'react'
 import { X, QrCode, Share2, Copy, Check } from 'lucide-react'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { logger } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface AddFriendModalProps {
   isOpen: boolean
@@ -18,6 +20,7 @@ export default function AddFriendModal({
   username 
 }: AddFriendModalProps) {
   const { t } = useLanguage()
+  const toast = useToastContext()
   const [selectedTab, setSelectedTab] = useState<'qr' | 'link'>('qr')
   const [copied, setCopied] = useState(false)
 
@@ -35,9 +38,12 @@ export default function AddFriendModal({
     try {
       await navigator.clipboard.writeText(profileLink)
       setCopied(true)
+      toast.success('Enlace copiado al portapapeles')
       setTimeout(() => setCopied(false), 2000)
+      logger.trackEvent('profile_link_copied', { userId })
     } catch (error) {
-      console.error('Error copying link:', error)
+      logger.error('Error al copiar enlace', error as Error, { userId })
+      toast.error('No se pudo copiar el enlace')
     }
   }
 
@@ -49,8 +55,12 @@ export default function AddFriendModal({
           text: `¡Únete a mi red en WhereTonight!`,
           url: profileLink
         })
+        logger.trackEvent('profile_shared', { userId, method: 'native_share' })
       } catch (error) {
-        console.error('Error sharing:', error)
+        // Usuario canceló el share - no es un error real
+        if ((error as Error).name !== 'AbortError') {
+          logger.error('Error al compartir', error as Error, { userId })
+        }
       }
     } else {
       // Fallback: copiar enlace

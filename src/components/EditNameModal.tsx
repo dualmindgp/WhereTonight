@@ -3,6 +3,8 @@
 import React, { useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface EditNameModalProps {
   isOpen: boolean
@@ -19,6 +21,7 @@ export default function EditNameModal({
   onClose, 
   onSuccess 
 }: EditNameModalProps) {
+  const toast = useToastContext()
   const [newName, setNewName] = useState(currentName)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -95,11 +98,15 @@ export default function EditNameModal({
       }
 
       // 3. Éxito
+      toast.success('Nombre actualizado correctamente')
+      logger.trackEvent('username_updated', { userId, newName: newName.trim() })
       onSuccess()
       onClose()
     } catch (error: any) {
-      console.error('Error updating name:', error)
-      setError(error.message || 'Error al actualizar el nombre')
+      logger.error('Error al actualizar nombre', error, { userId, newName: newName.trim() })
+      const errorMessage = error.message || 'Error al actualizar el nombre'
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setIsSubmitting(false)
     }

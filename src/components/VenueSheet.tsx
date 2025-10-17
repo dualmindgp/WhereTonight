@@ -7,6 +7,8 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import PhotoCarousel from './PhotoCarousel'
 import ConfirmTicketModal from './ConfirmTicketModal'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface VenueSheetProps {
   venue: VenueWithCount
@@ -26,13 +28,12 @@ export default function VenueSheet({
   userId
 }: VenueSheetProps) {
   const { t } = useLanguage()
+  const toast = useToastContext()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showToast, setShowToast] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
-  const [showSavedToast, setShowSavedToast] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // Verificar si el venue está guardado
@@ -71,11 +72,16 @@ export default function VenueSheet({
   const handleConfirmTicket = async () => {
     setShowConfirmModal(false)
     setIsSubmitting(true)
+    
+    logger.info('Usuario usando ticket', { venueId: venue.id, userId })
+    
     try {
       const success = await onUseTicket(venue.id)
       if (success) {
-        setShowToast(true)
-        setTimeout(() => setShowToast(false), 3000)
+        toast.success('¡Nos vemos allí!')
+        logger.trackEvent('ticket_used', { venueId: venue.id, venueName: venue.name })
+      } else {
+        toast.error('No se pudo usar el ticket')
       }
     } finally {
       setIsSubmitting(false)
@@ -88,44 +94,55 @@ export default function VenueSheet({
 
   const handleSaveVenue = async () => {
     if (!userId) {
-      alert('Debes iniciar sesión para guardar favoritos')
+      toast.warning('Debes iniciar sesión para guardar favoritos')
       return
     }
 
     setIsSaving(true)
 
-    try {
-      if (isSaved) {
-        // Quitar de favoritos
-        const { error } = await supabase
-          .from('favorites')
-          .delete()
-          .eq('user_id', userId)
-          .eq('venue_id', venue.id)
+    const action = isSaved ? 'remove' : 'add'
+    
+    const success = await withErrorHandling(
+      async () => {
+        if (isSaved) {
+          // Quitar de favoritos
+          const { error } = await supabase
+            .from('favorites')
+            .delete()
+            .eq('user_id', userId)
+            .eq('venue_id', venue.id)
 
-        if (error) throw error
+          if (error) throw error
+          return 'removed'
+        } else {
+          // Añadir a favoritos
+          const { error } = await supabase
+            .from('favorites')
+            .insert({
+              user_id: userId,
+              venue_id: venue.id
+            })
 
-        setIsSaved(false)
-      } else {
-        // Añadir a favoritos
-        const { error } = await supabase
-          .from('favorites')
-          .insert({
-            user_id: userId,
-            venue_id: venue.id
-          })
+          if (error) throw error
+          return 'added'
+        }
+      },
+      `Error al ${action === 'add' ? 'guardar' : 'quitar'} favorito`,
+      { userId, venueId: venue.id, action }
+    )
 
-        if (error) throw error
+    setIsSaving(false)
 
-        setIsSaved(true)
-        setShowSavedToast(true)
-        setTimeout(() => setShowSavedToast(false), 2000)
-      }
-    } catch (error) {
-      console.error('Error saving venue:', error)
-      alert('Error al guardar el local')
-    } finally {
-      setIsSaving(false)
+    if (success === 'added') {
+      setIsSaved(true)
+      toast.success('¡Guardado en favoritos!')
+      logger.trackEvent('venue_favorited', { venueId: venue.id, venueName: venue.name })
+    } else if (success === 'removed') {
+      setIsSaved(false)
+      toast.info('Quitado de favoritos')
+      logger.trackEvent('venue_unfavorited', { venueId: venue.id })
+    } else {
+      toast.error('Error al guardar el local')
     }
   }
 
@@ -332,19 +349,6 @@ export default function VenueSheet({
         </div>
       </div>
       
-      {/* Toast notifications */}
-      {showToast && (
-        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
-          ¡Nos vemos allí!
-        </div>
-      )}
-      
-      {showSavedToast && (
-        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-neon-purple to-neon-pink text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-2 animate-bounce">
-          <Bookmark className="w-5 h-5 fill-current" />
-          <span className="font-medium">¡Guardado en favoritos!</span>
-        </div>
-      )}
 
       {/* Confirmation Modal */}
       <ConfirmTicketModal

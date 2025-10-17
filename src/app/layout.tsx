@@ -3,7 +3,9 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { VenueProvider } from "@/contexts/VenueContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { ToastProvider } from "@/contexts/ToastContext";
 import PWARegister from "@/components/PWARegister";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -58,11 +60,15 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <PWARegister />
-        <LanguageProvider>
-          <VenueProvider>
-            {children}
-          </VenueProvider>
-        </LanguageProvider>
+        <ErrorBoundary>
+          <ToastProvider>
+            <LanguageProvider>
+              <VenueProvider>
+                {children}
+              </VenueProvider>
+            </LanguageProvider>
+          </ToastProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );
