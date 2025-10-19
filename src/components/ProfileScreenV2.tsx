@@ -11,6 +11,8 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import AddFriendModal from './AddFriendModal'
 import EditNameModal from './EditNameModal'
 import { VenueWithCount } from '@/lib/database.types'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface ProfileScreenV2Props {
   user: User
@@ -36,66 +38,65 @@ export default function ProfileScreenV2({
   onShowFriends
 }: ProfileScreenV2Props) {
   const { t, locale } = useLanguage()
+  const toast = useToastContext()
   const [showAddFriendModal, setShowAddFriendModal] = useState(false)
   const [showEditNameModal, setShowEditNameModal] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const uploadAvatar = async (file: File) => {
-    try {
-      console.log('Subiendo avatar...', file.name)
-      setAvatarUploading(true)
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-      const filePath = `${fileName}`
+    setAvatarUploading(true)
+    logger.info('Subiendo avatar', { userId: user.id, fileName: file.name })
+    
+    const success = await withErrorHandling(
+      async () => {
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`
+        const filePath = `${fileName}`
 
-      console.log('Subiendo a:', filePath)
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, file, { upsert: true })
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true })
+        if (uploadError) throw uploadError
 
-      if (uploadError) {
-        console.error('Error upload:', uploadError)
-        throw uploadError
-      }
+        const { data } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath)
 
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
-
-      console.log('URL p\u00fablica:', data.publicUrl)
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: data.publicUrl })
-        .eq('id', user.id)
-
-      console.log('Update error:', updateError)
-
-      if (updateError && updateError.code === 'PGRST116') {
-        console.log('Perfil no existe, creando...')
-        const { error: insertError } = await supabase
+        const { error: updateError } = await supabase
           .from('profiles')
-          .insert({
-            id: user.id,
-            avatar_url: data.publicUrl,
-            language: locale
-          })
-        console.log('Insert error:', insertError)
-        if (insertError) throw insertError
-      } else if (updateError) {
-        throw updateError
-      }
+          .update({ avatar_url: data.publicUrl })
+          .eq('id', user.id)
 
-      console.log('Avatar subido correctamente')
+        if (updateError && updateError.code === 'PGRST116') {
+          logger.info('Creando perfil nuevo', { userId: user.id })
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: user.id,
+              avatar_url: data.publicUrl,
+              language: locale
+            })
+          if (insertError) throw insertError
+        } else if (updateError) {
+          throw updateError
+        }
+
+        return true
+      },
+      'Error al subir foto de perfil',
+      { userId: user.id }
+    )
+
+    setAvatarUploading(false)
+    
+    if (success) {
       onProfileUpdated()
-      alert('\u00a1Foto de perfil actualizada!')
-    } catch (error) {
-      console.error('Error uploading avatar:', error)
-      alert('Error al subir la foto. Revisa la consola.')
-    } finally {
-      setAvatarUploading(false)
+      toast.success('¡Foto de perfil actualizada!')
+      logger.trackEvent('avatar_uploaded_v2', { userId: user.id })
+    } else {
+      toast.error('Error al subir la foto')
     }
   }
 
@@ -104,12 +105,12 @@ export default function ProfileScreenV2({
     if (!file) return
 
     if (file.size > 2 * 1024 * 1024) {
-      alert('El archivo debe ser menor a 2MB')
+      toast.warning('El archivo debe ser menor a 2MB')
       return
     }
 
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      alert('Solo se permiten archivos PNG, JPG o WEBP')
+      toast.warning('Solo se permiten archivos PNG, JPG o WEBP')
       return
     }
 
@@ -195,7 +196,7 @@ export default function ProfileScreenV2({
           .eq('status', 'pending')
         setPendingRequestsCount(pendingRequests || 0)
       } catch (error) {
-        console.error('Error loading stats:', error)
+        logger.error('Error al cargar estadísticas', error as Error, { userId: user.id })
       }
     }
 

@@ -4,6 +4,8 @@ import React, { useState, useRef } from 'react'
 import { X, Upload, Camera } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { logger } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface EditProfileModalProps {
   isOpen: boolean
@@ -24,6 +26,7 @@ export default function EditProfileModal({
   onProfileUpdated 
 }: EditProfileModalProps) {
   const { t } = useLanguage()
+  const toast = useToastContext()
   const [username, setUsername] = useState(currentProfile.username || '')
   const [bio, setBio] = useState(currentProfile.bio || '')
   const [avatarUrl, setAvatarUrl] = useState(currentProfile.avatar_url || '')
@@ -41,13 +44,15 @@ export default function EditProfileModal({
 
     // Validar tamaño (< 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      setError(t('common.error') + ': File must be less than 2MB')
+      toast.warning('El archivo debe ser menor a 2MB')
+      setError('El archivo debe ser menor a 2MB')
       return
     }
 
     // Validar formato
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      setError(t('common.error') + ': Only PNG, JPG or WEBP files allowed')
+      toast.warning('Solo se permiten archivos PNG, JPG o WEBP')
+      setError('Solo se permiten archivos PNG, JPG o WEBP')
       return
     }
 
@@ -73,7 +78,7 @@ export default function EditProfileModal({
         .upload(filePath, file, { upsert: true })
 
       if (uploadError) {
-        console.error('Error uploading avatar:', uploadError)
+        logger.error('Error al subir avatar', uploadError, { userId, fileName })
         return null
       }
 
@@ -81,9 +86,10 @@ export default function EditProfileModal({
         .from('avatars')
         .getPublicUrl(filePath)
 
+      logger.trackEvent('avatar_uploaded_via_modal', { userId })
       return data.publicUrl
     } catch (error) {
-      console.error('Error in uploadAvatar:', error)
+      logger.error('Error en uploadAvatar', error as Error, { userId })
       return null
     }
   }
@@ -118,15 +124,21 @@ export default function EditProfileModal({
         .eq('id', currentProfile.id)
 
       if (updateError) {
+        logger.error('Error al actualizar perfil', updateError, { userId: currentProfile.id })
         setError(updateError.message)
+        toast.error('Error al actualizar el perfil')
         setLoading(false)
         return
       }
 
+      toast.success('Perfil actualizado correctamente')
+      logger.trackEvent('profile_updated_via_modal', { userId: currentProfile.id })
       onProfileUpdated()
       onClose()
     } catch (error: any) {
+      logger.error('Error al guardar perfil', error, { userId: currentProfile.id })
       setError(error.message)
+      toast.error('Error al guardar el perfil')
     } finally {
       setLoading(false)
     }

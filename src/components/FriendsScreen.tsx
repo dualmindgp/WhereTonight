@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import SearchUsersModal from './SearchUsersModal'
 import FriendRequestsModal from './FriendRequestsModal'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface Friend {
   id: string
@@ -19,6 +21,7 @@ interface FriendsScreenProps {
 }
 
 export default function FriendsScreen({ user, onBack }: FriendsScreenProps) {
+  const toast = useToastContext()
   const [friends, setFriends] = useState<Friend[]>([])
   const [loading, setLoading] = useState(true)
   const [showSearchModal, setShowSearchModal] = useState(false)
@@ -31,67 +34,72 @@ export default function FriendsScreen({ user, onBack }: FriendsScreenProps) {
   }, [user.id])
 
   const loadPendingRequestsCount = async () => {
-    try {
-      const { count, error } = await supabase
-        .from('friendships')
-        .select('*', { count: 'exact', head: true })
-        .eq('friend_id', user.id)
-        .eq('status', 'pending')
+    const count = await withErrorHandling(
+      async () => {
+        const { count, error } = await supabase
+          .from('friendships')
+          .select('*', { count: 'exact', head: true })
+          .eq('friend_id', user.id)
+          .eq('status', 'pending')
 
-      if (error) throw error
-      setPendingRequestsCount(count || 0)
-    } catch (error) {
-      console.error('Error loading pending requests count:', error)
+        if (error) throw error
+        return count || 0
+      },
+      'Error al cargar solicitudes pendientes',
+      { userId: user.id }
+    )
+    
+    if (count !== null) {
+      setPendingRequestsCount(count)
     }
   }
 
   const loadFriends = async () => {
-    try {
-      console.log('Cargando amigos para usuario:', user.id)
-      
-      // Obtener amistades aceptadas
-      const { data: friendshipsData, error: friendshipsError } = await supabase
-        .from('friendships')
-        .select('user_id, friend_id')
-        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
-        .eq('status', 'accepted')
+    logger.info('Cargando amigos', { userId: user.id })
+    
+    const data = await withErrorHandling(
+      async () => {
+        // Obtener amistades aceptadas
+        const { data: friendshipsData, error: friendshipsError } = await supabase
+          .from('friendships')
+          .select('user_id, friend_id')
+          .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
+          .eq('status', 'accepted')
 
-      console.log('Amistades obtenidas:', friendshipsData, 'Error:', friendshipsError)
+        if (friendshipsError) throw friendshipsError
 
-      if (friendshipsError) {
-        console.error('Error al obtener amistades:', friendshipsError)
-        throw friendshipsError
-      }
+        if (!friendshipsData || friendshipsData.length === 0) {
+          logger.info('Usuario sin amigos', { userId: user.id })
+          return []
+        }
 
-      if (!friendshipsData || friendshipsData.length === 0) {
-        console.log('No hay amigos')
-        setFriends([])
-        setLoading(false)
-        return
-      }
+        // Obtener IDs de amigos
+        const friendIds = friendshipsData.map(f => 
+          f.user_id === user.id ? f.friend_id : f.user_id
+        )
 
-      // Obtener IDs de amigos
-      const friendIds = friendshipsData.map(f => 
-        f.user_id === user.id ? f.friend_id : f.user_id
-      )
-      console.log('IDs de amigos:', friendIds)
+        // Obtener perfiles de amigos
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', friendIds)
 
-      // Obtener perfiles de amigos
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url')
-        .in('id', friendIds)
+        if (profilesError) throw profilesError
 
-      console.log('Perfiles obtenidos:', profilesData, 'Error:', profilesError)
+        return profilesData || []
+      },
+      'Error al cargar amigos',
+      { userId: user.id }
+    )
 
-      if (profilesError) throw profilesError
-
-      setFriends(profilesData || [])
-    } catch (error) {
-      console.error('Error loading friends:', error)
-      alert('Error al cargar amigos. Revisa la consola.')
-    } finally {
-      setLoading(false)
+    setLoading(false)
+    
+    if (data) {
+      setFriends(data)
+      logger.trackEvent('friends_loaded', { userId: user.id, count: data.length })
+    } else {
+      setFriends([])
+      toast.error('Error al cargar amigos')
     }
   }
 

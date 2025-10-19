@@ -3,6 +3,8 @@
 import React, { useState } from 'react'
 import { X, Search, UserPlus, Check, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface User {
   id: string
@@ -21,6 +23,7 @@ export default function SearchUsersModal({
   onClose,
   currentUserId
 }: SearchUsersModalProps) {
+  const toast = useToastContext()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
@@ -38,67 +41,79 @@ export default function SearchUsersModal({
     }
 
     setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url')
-        .ilike('username', `%${query}%`)
-        .neq('id', currentUserId)
-        .limit(20)
+    
+    const data = await withErrorHandling(
+      async () => {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .ilike('username', `%${query}%`)
+          .neq('id', currentUserId)
+          .limit(20)
 
-      if (error) throw error
+        if (error) throw error
+        return data || []
+      },
+      'Error al buscar usuarios',
+      { query, currentUserId }
+    )
 
-      setSearchResults(data || [])
-    } catch (error) {
-      console.error('Error searching users:', error)
-    } finally {
-      setLoading(false)
+    setLoading(false)
+    if (data) {
+      setSearchResults(data)
+    } else {
+      setSearchResults([])
     }
   }
 
   const handleSendFriendRequest = async (userId: string) => {
     setSendingRequest(userId)
-    try {
-      // Verificar si ya existe una solicitud o amistad en cualquier dirección
-      const { data: existing } = await supabase
-        .from('friendships')
-        .select('id, status')
-        .or(`and(user_id.eq.${currentUserId},friend_id.eq.${userId}),and(user_id.eq.${userId},friend_id.eq.${currentUserId})`)
+    
+    const result = await withErrorHandling(
+      async () => {
+        // Verificar si ya existe una solicitud o amistad en cualquier dirección
+        const { data: existing } = await supabase
+          .from('friendships')
+          .select('id, status')
+          .or(`and(user_id.eq.${currentUserId},friend_id.eq.${userId}),and(user_id.eq.${userId},friend_id.eq.${currentUserId})`)
 
-      if (existing && existing.length > 0) {
-        const status = existing[0].status
-        if (status === 'accepted') {
-          alert('Ya son amigos')
-        } else if (status === 'pending') {
-          alert('Ya existe una solicitud pendiente')
+        if (existing && existing.length > 0) {
+          const status = existing[0].status
+          return status === 'accepted' ? 'already_friends' : 'already_pending'
         }
-        setSendingRequest(null)
-        return
-      }
 
-      // Crear solicitud de amistad
-      const { error } = await supabase
-        .from('friendships')
-        .insert({
-          user_id: currentUserId,
-          friend_id: userId,
-          status: 'pending'
-        })
+        // Crear solicitud de amistad
+        const { error } = await supabase
+          .from('friendships')
+          .insert({
+            user_id: currentUserId,
+            friend_id: userId,
+            status: 'pending'
+          })
 
-      if (error) throw error
+        if (error) throw error
+        return 'sent'
+      },
+      'Error al enviar solicitud',
+      { currentUserId, targetUserId: userId }
+    )
 
-      // Marcar como enviada
+    setSendingRequest(null)
+    
+    if (result === 'sent') {
       setSentRequests(prev => {
         const newSet = new Set(prev)
         newSet.add(userId)
         return newSet
       })
-      
-    } catch (error) {
-      console.error('Error sending friend request:', error)
-      alert('Error al enviar solicitud de amistad')
-    } finally {
-      setSendingRequest(null)
+      toast.success('Solicitud enviada')
+      logger.trackEvent('friend_request_sent', { fromUserId: currentUserId, toUserId: userId })
+    } else if (result === 'already_friends') {
+      toast.info('Ya son amigos')
+    } else if (result === 'already_pending') {
+      toast.info('Ya existe una solicitud pendiente')
+    } else {
+      toast.error('Error al enviar solicitud')
     }
   }
 

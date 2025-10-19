@@ -9,6 +9,8 @@ import LanguageSelector from './LanguageSelector'
 import ActivityFeed from './ActivityFeed'
 import AddFriendModal from './AddFriendModal'
 import { VenueWithCount } from '@/lib/database.types'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface ProfileScreenProps {
   user: User
@@ -26,6 +28,7 @@ export default function ProfileScreen({
   onProfileUpdated 
 }: ProfileScreenProps) {
   const { t } = useLanguage()
+  const toast = useToastContext()
   const [showAddFriendModal, setShowAddFriendModal] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [showEditBio, setShowEditBio] = useState(false)
@@ -71,10 +74,12 @@ export default function ProfileScreen({
         throw updateError
       }
 
+      toast.success('Foto de perfil actualizada')
+      logger.trackEvent('avatar_uploaded', { userId: user.id })
       onProfileUpdated()
     } catch (error) {
-      console.error('Error uploading avatar:', error)
-      alert('Error al subir la foto. Por favor, intenta de nuevo.')
+      logger.error('Error al subir avatar', error as Error, { userId: user.id })
+      toast.error('Error al subir la foto. Por favor, intenta de nuevo.')
     } finally {
       setAvatarUploading(false)
     }
@@ -86,13 +91,13 @@ export default function ProfileScreen({
 
     // Validar tamaño (< 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      alert('El archivo debe ser menor a 2MB')
+      toast.warning('El archivo debe ser menor a 2MB')
       return
     }
 
     // Validar formato
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      alert('Solo se permiten archivos PNG, JPG o WEBP')
+      toast.warning('Solo se permiten archivos PNG, JPG o WEBP')
       return
     }
 
@@ -100,65 +105,58 @@ export default function ProfileScreen({
   }
 
   const handleSaveProfile = async () => {
-    try {
-      console.log('Guardando perfil...', {
-        userId: user.id,
-        username: editingUsername.trim(),
-        bio: editingBio.trim()
-      })
+    logger.info('Guardando perfil', {
+      userId: user.id,
+      username: editingUsername.trim(),
+      bio: editingBio.trim()
+    })
 
-      // Primero intentar actualizar
-      const { data: updateData, error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          username: editingUsername.trim() || null,
-          bio: editingBio.trim() || null
-        })
-        .eq('id', user.id)
-        .select()
+    const success = await withErrorHandling(
+      async () => {
+        // Primero intentar actualizar
+        const { data: updateData, error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            username: editingUsername.trim() || null,
+            bio: editingBio.trim() || null
+          })
+          .eq('id', user.id)
+          .select()
 
-      console.log('Resultado del update:', { data: updateData, error: updateError })
-
-      // Si falla porque no existe el perfil, crearlo
-      if (updateError) {
-        console.error('Error en update:', updateError)
-        
-        if (updateError.code === 'PGRST116' || updateError.message?.includes('0 rows')) {
-          // No rows updated - el perfil no existe, crearlo
-          console.log('Creando nuevo perfil...')
-          const { data: insertData, error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: user.id,
-              username: editingUsername.trim() || null,
-              bio: editingBio.trim() || null,
-              language: 'es'
-            })
-            .select()
-          
-          console.log('Resultado del insert:', { data: insertData, error: insertError })
-          
-          if (insertError) {
-            console.error('Error creating profile:', insertError)
-            alert(`Error al crear el perfil: ${insertError.message}`)
-            return
+        // Si falla porque no existe el perfil, crearlo
+        if (updateError) {
+          if (updateError.code === 'PGRST116' || updateError.message?.includes('0 rows')) {
+            // No rows updated - el perfil no existe, crearlo
+            logger.info('Creando nuevo perfil', { userId: user.id })
+            const { data: insertData, error: insertError } = await supabase
+              .from('profiles')
+              .insert({
+                id: user.id,
+                username: editingUsername.trim() || null,
+                bio: editingBio.trim() || null,
+                language: 'es'
+              })
+              .select()
+            
+            if (insertError) throw insertError
+            return insertData
+          } else {
+            throw updateError
           }
-          console.log('Perfil creado exitosamente')
-        } else {
-          console.error('Error updating profile:', updateError)
-          alert(`Error al actualizar: ${updateError.message}`)
-          return
         }
-      } else {
-        console.log('Perfil actualizado exitosamente')
-      }
+        return updateData
+      },
+      'Error al guardar perfil',
+      { userId: user.id, username: editingUsername.trim() }
+    )
 
+    if (success) {
       setShowEditBio(false)
       onProfileUpdated()
-      alert('Perfil guardado correctamente')
-    } catch (error: any) {
-      console.error('Error updating profile:', error)
-      alert(`Error al guardar: ${error.message}`)
+      toast.success('Perfil guardado correctamente')
+      logger.trackEvent('profile_updated', { userId: user.id })
+    } else {
+      toast.error('Error al guardar el perfil')
     }
   }
 

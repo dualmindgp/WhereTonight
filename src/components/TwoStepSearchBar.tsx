@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { Search, MapPin, X, Navigation, Clock, Star } from 'lucide-react'
+import { logger } from '@/lib/logger'
 
 interface SearchResult {
   place_id: number
@@ -51,8 +52,9 @@ export default function TwoStepSearchBar({
       const data = await response.json()
       setCityResults(data)
       setShowCityResults(true)
+      logger.trackEvent('city_search_two_step', { query, resultsCount: data.length })
     } catch (error) {
-      console.error('Error searching cities:', error)
+      logger.error('Error al buscar ciudades', error as Error, { query })
       setCityResults([])
     }
   }

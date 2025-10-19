@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import { X, UserCheck, UserX, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface FriendRequest {
   id: string
@@ -28,6 +30,7 @@ export default function FriendRequestsModal({
   currentUserId,
   onRequestsChange
 }: FriendRequestsModalProps) {
+  const toast = useToastContext()
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [processingRequest, setProcessingRequest] = useState<string | null>(null)
@@ -40,107 +43,121 @@ export default function FriendRequestsModal({
 
   const loadRequests = async () => {
     setLoading(true)
-    try {
-      console.log('Cargando solicitudes para:', currentUserId)
-      
-      // Primero obtener las solicitudes pendientes
-      const { data: requestsData, error: requestsError } = await supabase
-        .from('friendships')
-        .select('id, user_id, created_at')
-        .eq('friend_id', currentUserId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
+    logger.info('Cargando solicitudes de amistad', { userId: currentUserId })
+    
+    const data = await withErrorHandling(
+      async () => {
+        // Primero obtener las solicitudes pendientes
+        const { data: requestsData, error: requestsError } = await supabase
+          .from('friendships')
+          .select('id, user_id, created_at')
+          .eq('friend_id', currentUserId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
 
-      console.log('Solicitudes obtenidas:', requestsData, 'Error:', requestsError)
+        if (requestsError) throw requestsError
 
-      if (requestsError) throw requestsError
-
-      if (!requestsData || requestsData.length === 0) {
-        console.log('No hay solicitudes pendientes')
-        setRequests([])
-        setLoading(false)
-        return
-      }
-
-      // Obtener los IDs de usuarios que enviaron las solicitudes
-      const userIds = requestsData.map(req => req.user_id)
-      console.log('IDs de usuarios:', userIds)
-
-      // Obtener perfiles de esos usuarios
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url')
-        .in('id', userIds)
-
-      console.log('Perfiles obtenidos:', profilesData, 'Error:', profilesError)
-
-      if (profilesError) throw profilesError
-
-      // Combinar datos
-      const transformedRequests = requestsData.map((req) => {
-        const profile = profilesData?.find(p => p.id === req.user_id)
-        return {
-          id: req.id,
-          user_id: req.user_id,
-          created_at: req.created_at,
-          requester: profile || {
-            id: req.user_id,
-            username: 'Usuario',
-            avatar_url: null
-          }
+        if (!requestsData || requestsData.length === 0) {
+          logger.info('Sin solicitudes pendientes', { userId: currentUserId })
+          return []
         }
-      })
 
-      console.log('Solicitudes transformadas:', transformedRequests)
-      setRequests(transformedRequests)
-    } catch (error) {
-      console.error('Error loading friend requests:', error)
-    } finally {
-      setLoading(false)
+        // Obtener los IDs de usuarios que enviaron las solicitudes
+        const userIds = requestsData.map(req => req.user_id)
+
+        // Obtener perfiles de esos usuarios
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', userIds)
+
+        if (profilesError) throw profilesError
+
+        // Combinar datos
+        const transformedRequests = requestsData.map((req) => {
+          const profile = profilesData?.find(p => p.id === req.user_id)
+          return {
+            id: req.id,
+            user_id: req.user_id,
+            created_at: req.created_at,
+            requester: profile || {
+              id: req.user_id,
+              username: 'Usuario',
+              avatar_url: null
+            }
+          }
+        })
+
+        return transformedRequests
+      },
+      'Error al cargar solicitudes',
+      { userId: currentUserId }
+    )
+
+    setLoading(false)
+    if (data) {
+      setRequests(data)
+      logger.trackEvent('friend_requests_loaded', { userId: currentUserId, count: data.length })
+    } else {
+      setRequests([])
     }
   }
 
   const handleAcceptRequest = async (requestId: string) => {
     setProcessingRequest(requestId)
-    try {
-      const { error } = await supabase
-        .from('friendships')
-        .update({ status: 'accepted' })
-        .eq('id', requestId)
+    
+    const success = await withErrorHandling(
+      async () => {
+        const { error } = await supabase
+          .from('friendships')
+          .update({ status: 'accepted' })
+          .eq('id', requestId)
 
-      if (error) throw error
+        if (error) throw error
+        return true
+      },
+      'Error al aceptar solicitud',
+      { requestId, userId: currentUserId }
+    )
 
-      // Remover de la lista
+    setProcessingRequest(null)
+    
+    if (success) {
       setRequests(prev => prev.filter(req => req.id !== requestId))
       onRequestsChange()
-      
-    } catch (error) {
-      console.error('Error accepting request:', error)
-      alert('Error al aceptar solicitud')
-    } finally {
-      setProcessingRequest(null)
+      toast.success('Solicitud aceptada')
+      logger.trackEvent('friend_request_accepted', { requestId, userId: currentUserId })
+    } else {
+      toast.error('Error al aceptar solicitud')
     }
   }
 
   const handleRejectRequest = async (requestId: string) => {
     setProcessingRequest(requestId)
-    try {
-      const { error } = await supabase
-        .from('friendships')
-        .delete()
-        .eq('id', requestId)
+    
+    const success = await withErrorHandling(
+      async () => {
+        const { error } = await supabase
+          .from('friendships')
+          .delete()
+          .eq('id', requestId)
 
-      if (error) throw error
+        if (error) throw error
+        return true
+      },
+      'Error al rechazar solicitud',
+      { requestId, userId: currentUserId }
+    )
 
-      // Remover de la lista
+    setProcessingRequest(null)
+    
+    if (success) {
       setRequests(prev => prev.filter(req => req.id !== requestId))
       onRequestsChange()
-      
-    } catch (error) {
-      console.error('Error rejecting request:', error)
-      alert('Error al rechazar solicitud')
-    } finally {
-      setProcessingRequest(null)
+      toast.info('Solicitud rechazada')
+      logger.trackEvent('friend_request_rejected', { requestId, userId: currentUserId })
+    } else {
+      toast.error('Error al rechazar solicitud')
     }
   }
 

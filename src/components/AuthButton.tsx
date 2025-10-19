@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { LogIn, LogOut, User as UserIcon } from 'lucide-react'
+import { logger } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 export default function AuthButton() {
+  const toast = useToastContext()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [authLoading, setAuthLoading] = useState(false)
@@ -38,8 +41,10 @@ export default function AuthButton() {
     })
     
     if (error) {
-      console.error('Error signing in:', error)
-      alert('Error al iniciar sesión. Inténtalo de nuevo.')
+      logger.error('Error al iniciar sesión', error)
+      toast.error('Error al iniciar sesión. Inténtalo de nuevo.')
+    } else {
+      logger.trackEvent('sign_in_initiated', { provider: 'google' })
     }
     setAuthLoading(false)
   }
@@ -48,7 +53,11 @@ export default function AuthButton() {
     setAuthLoading(true)
     const { error } = await supabase.auth.signOut()
     if (error) {
-      console.error('Error signing out:', error)
+      logger.error('Error al cerrar sesión', error)
+      toast.error('Error al cerrar sesión')
+    } else {
+      logger.trackEvent('sign_out', { userId: user?.id })
+      toast.info('Sesión cerrada')
     }
     setAuthLoading(false)
   }

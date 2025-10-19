@@ -5,6 +5,8 @@ import { ChevronLeft, Bookmark, MapPin, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { VenueWithCount } from '@/lib/database.types'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface FavoritesScreenProps {
   user: User
@@ -13,6 +15,7 @@ interface FavoritesScreenProps {
 }
 
 export default function FavoritesScreen({ user, onBack, onVenueClick }: FavoritesScreenProps) {
+  const toast = useToastContext()
   const [favorites, setFavorites] = useState<VenueWithCount[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -21,72 +24,81 @@ export default function FavoritesScreen({ user, onBack, onVenueClick }: Favorite
   }, [user.id])
 
   const loadFavorites = async () => {
-    try {
-      console.log('Cargando favoritos para usuario:', user.id)
-      
-      // Primero obtenemos los IDs de venues favoritos
-      const { data: favoritesData, error: favError } = await supabase
-        .from('favorites')
-        .select('venue_id')
-        .eq('user_id', user.id)
+    logger.info('Cargando favoritos', { userId: user.id })
+    
+    const data = await withErrorHandling(
+      async () => {
+        // Primero obtenemos los IDs de venues favoritos
+        const { data: favoritesData, error: favError } = await supabase
+          .from('favorites')
+          .select('venue_id')
+          .eq('user_id', user.id)
 
-      console.log('Favoritos obtenidos:', favoritesData, 'Error:', favError)
+        if (favError) throw favError
 
-      if (favError) {
-        console.error('Error al obtener favoritos:', favError)
-        throw favError
-      }
+        if (!favoritesData || favoritesData.length === 0) {
+          logger.info('Usuario sin favoritos', { userId: user.id })
+          return []
+        }
 
-      if (!favoritesData || favoritesData.length === 0) {
-        console.log('No hay favoritos')
-        setFavorites([])
-        setLoading(false)
-        return
-      }
+        const venueIds = favoritesData.map(f => f.venue_id)
 
-      const venueIds = favoritesData.map(f => f.venue_id)
-      console.log('IDs de venues:', venueIds)
+        // Luego obtenemos los detalles de esos venues
+        const { data: venuesData, error: venuesError } = await supabase
+          .from('venues')
+          .select('*')
+          .in('id', venueIds)
 
-      // Luego obtenemos los detalles de esos venues
-      const { data: venuesData, error: venuesError } = await supabase
-        .from('venues')
-        .select('*')
-        .in('id', venueIds)
+        if (venuesError) throw venuesError
 
-      console.log('Venues obtenidos:', venuesData, 'Error:', venuesError)
+        // Obtener conteos
+        const { data: counts } = await supabase.rpc('tickets_count_today_euwarsaw')
+        const countsMap = new Map(counts?.map((c: any) => [c.venue_id, c.count_today]) || [])
 
-      if (venuesError) throw venuesError
+        const venuesWithCounts = (venuesData || []).map(venue => ({
+          ...venue,
+          count_today: countsMap.get(venue.id) || 0
+        }))
 
-      // Obtener conteos
-      const { data: counts } = await supabase.rpc('tickets_count_today_euwarsaw')
-      const countsMap = new Map(counts?.map((c: any) => [c.venue_id, c.count_today]) || [])
+        return venuesWithCounts
+      },
+      'Error al cargar favoritos',
+      { userId: user.id }
+    )
 
-      const venuesWithCounts = (venuesData || []).map(venue => ({
-        ...venue,
-        count_today: countsMap.get(venue.id) || 0
-      }))
-
-      console.log('Venues con conteos:', venuesWithCounts)
-      setFavorites(venuesWithCounts)
-    } catch (error) {
-      console.error('Error loading favorites:', error)
-      alert('Error al cargar favoritos. Revisa la consola.')
-    } finally {
-      setLoading(false)
+    setLoading(false)
+    
+    if (data) {
+      setFavorites(data)
+      logger.trackEvent('favorites_loaded', { userId: user.id, count: data.length })
+    } else {
+      setFavorites([])
+      toast.error('Error al cargar favoritos')
     }
   }
 
   const removeFavorite = async (venueId: string) => {
-    try {
-      await supabase
-        .from('favorites')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('venue_id', venueId)
+    const success = await withErrorHandling(
+      async () => {
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('venue_id', venueId)
+        
+        if (error) throw error
+        return true
+      },
+      'Error al quitar favorito',
+      { userId: user.id, venueId }
+    )
 
+    if (success) {
       setFavorites(favorites.filter(v => v.id !== venueId))
-    } catch (error) {
-      console.error('Error removing favorite:', error)
+      toast.info('Quitado de favoritos')
+      logger.trackEvent('favorite_removed', { userId: user.id, venueId })
+    } else {
+      toast.error('Error al quitar de favoritos')
     }
   }
 

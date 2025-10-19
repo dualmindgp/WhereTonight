@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { VenueWithCount } from '@/lib/database.types'
 import { MapPin, ExternalLink, Ticket, Users, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface VenueCardProps {
   venue: VenueWithCount
@@ -20,6 +22,7 @@ export default function VenueCard({
   onTicketUsed,
   onAuthRequired 
 }: VenueCardProps) {
+  const toast = useToastContext()
   const [isUsingTicket, setIsUsingTicket] = useState(false)
 
   const handleUseTicket = async () => {
@@ -33,34 +36,44 @@ export default function VenueCard({
     }
 
     setIsUsingTicket(true)
+    
+    const result = await withErrorHandling(
+      async () => {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        const response = await fetch('/api/ticket', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ venueId: venue.id })
+        })
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      const response = await fetch('/api/ticket', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ venueId: venue.id })
-      })
+        const data = await response.json()
 
-      const data = await response.json()
+        if (response.ok) {
+          return 'success'
+        } else if (response.status === 409) {
+          return 'already_used'
+        } else {
+          throw new Error(data.error || 'Error al usar el ticket')
+        }
+      },
+      'Error al usar ticket',
+      { venueId: venue.id }
+    )
 
-      if (response.ok) {
-        onTicketUsed()
-        alert('¡Ticket usado exitosamente! 🎉')
-      } else if (response.status === 409) {
-        alert('Ya usaste tu ticket hoy. ¡Espera hasta mañana!')
-      } else {
-        throw new Error(data.error || 'Error al usar el ticket')
-      }
-    } catch (error) {
-      console.error('Error using ticket:', error)
-      alert('Error al usar el ticket. Inténtalo de nuevo.')
-    } finally {
-      setIsUsingTicket(false)
+    setIsUsingTicket(false)
+    
+    if (result === 'success') {
+      onTicketUsed()
+      toast.success('¡Ticket usado exitosamente! 🎉')
+      logger.trackEvent('ticket_used_venue_card', { venueId: venue.id, venueName: venue.name })
+    } else if (result === 'already_used') {
+      toast.warning('Ya usaste tu ticket hoy. ¡Espera hasta mañana!')
+    } else {
+      toast.error('Error al usar el ticket. Inténtalo de nuevo.')
     }
   }
 

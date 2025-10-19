@@ -5,6 +5,8 @@ import { ChevronLeft, Clock, MapPin, Star, Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { VenueWithCount } from '@/lib/database.types'
+import { logger, withErrorHandling } from '@/lib/logger'
+import { useToastContext } from '@/contexts/ToastContext'
 
 interface HistoryScreenProps {
   user: User
@@ -17,6 +19,7 @@ interface TicketWithVenue extends VenueWithCount {
 }
 
 export default function HistoryScreen({ user, onBack, onVenueClick }: HistoryScreenProps) {
+  const toast = useToastContext()
   const [history, setHistory] = useState<TicketWithVenue[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -25,57 +28,67 @@ export default function HistoryScreen({ user, onBack, onVenueClick }: HistoryScr
   }, [user.id])
 
   const loadHistory = async () => {
-    try {
-      // Obtener tickets del usuario ordenados por fecha
-      const { data: ticketsData, error: ticketsError } = await supabase
-        .from('tickets')
-        .select('venue_id, local_date')
-        .eq('user_id', user.id)
-        .order('local_date', { ascending: false })
-        .limit(50) // Últimos 50 tickets
+    logger.info('Cargando historial', { userId: user.id })
+    
+    const data = await withErrorHandling(
+      async () => {
+        // Obtener tickets del usuario ordenados por fecha
+        const { data: ticketsData, error: ticketsError } = await supabase
+          .from('tickets')
+          .select('venue_id, local_date')
+          .eq('user_id', user.id)
+          .order('local_date', { ascending: false })
+          .limit(50) // Últimos 50 tickets
 
-      if (ticketsError) throw ticketsError
+        if (ticketsError) throw ticketsError
 
-      if (!ticketsData || ticketsData.length === 0) {
-        setHistory([])
-        setLoading(false)
-        return
-      }
+        if (!ticketsData || ticketsData.length === 0) {
+          logger.info('Usuario sin historial', { userId: user.id })
+          return []
+        }
 
-      // Obtener detalles de venues
-      const venueIds = Array.from(new Set(ticketsData.map(t => t.venue_id)))
-      const { data: venuesData, error: venuesError } = await supabase
-        .from('venues')
-        .select('*')
-        .in('id', venueIds)
+        // Obtener detalles de venues
+        const venueIds = Array.from(new Set(ticketsData.map(t => t.venue_id)))
+        const { data: venuesData, error: venuesError } = await supabase
+          .from('venues')
+          .select('*')
+          .in('id', venueIds)
 
-      if (venuesError) throw venuesError
+        if (venuesError) throw venuesError
 
-      // Obtener conteos actuales
-      const { data: counts } = await supabase.rpc('tickets_count_today_euwarsaw')
-      const countsMap = new Map(counts?.map((c: any) => [c.venue_id, c.count_today]) || [])
+        // Obtener conteos actuales
+        const { data: counts } = await supabase.rpc('tickets_count_today_euwarsaw')
+        const countsMap = new Map(counts?.map((c: any) => [c.venue_id, c.count_today]) || [])
 
-      // Crear mapa de venues
-      const venuesMap = new Map((venuesData || []).map(v => [v.id, v]))
+        // Crear mapa de venues
+        const venuesMap = new Map((venuesData || []).map(v => [v.id, v]))
 
-      // Combinar tickets con venues
-      const historyWithVenues = ticketsData
-        .map(ticket => {
-          const venue = venuesMap.get(ticket.venue_id)
-          if (!venue) return null
-          return {
-            ...venue,
-            count_today: countsMap.get(venue.id) || 0,
-            ticket_date: ticket.local_date
-          }
-        })
-        .filter(Boolean) as TicketWithVenue[]
+        // Combinar tickets con venues
+        const historyWithVenues = ticketsData
+          .map(ticket => {
+            const venue = venuesMap.get(ticket.venue_id)
+            if (!venue) return null
+            return {
+              ...venue,
+              count_today: countsMap.get(venue.id) || 0,
+              ticket_date: ticket.local_date
+            }
+          })
+          .filter(Boolean) as TicketWithVenue[]
 
-      setHistory(historyWithVenues)
-    } catch (error) {
-      console.error('Error loading history:', error)
-    } finally {
-      setLoading(false)
+        return historyWithVenues
+      },
+      'Error al cargar historial',
+      { userId: user.id }
+    )
+
+    setLoading(false)
+    if (data) {
+      setHistory(data)
+      logger.trackEvent('history_loaded', { userId: user.id, count: data.length })
+    } else {
+      setHistory([])
+      toast.error('Error al cargar historial')
     }
   }
 

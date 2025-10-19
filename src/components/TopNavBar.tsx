@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { MapPin, Search, SlidersHorizontal, X } from 'lucide-react'
 import LogoLoop from './LogoLoop'
+import { logger } from '@/lib/logger'
 
 interface TopNavBarProps {
   onCityChange?: (location: { name: string; lat: number; lng: number }) => void
@@ -47,8 +48,9 @@ export default function TopNavBar({
       const data = await response.json()
       setSearchResults(data)
       setShowResults(true)
+      logger.trackEvent('city_search', { query, resultsCount: data.length })
     } catch (error) {
-      console.error('Error searching cities:', error)
+      logger.error('Error al buscar ciudades', error as Error, { query })
       setSearchResults([])
     }
   }

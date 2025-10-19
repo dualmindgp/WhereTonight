@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { MapPin, Clock } from 'lucide-react'
+import { logger, withErrorHandling } from '@/lib/logger'
 
 interface Activity {
   id: string
@@ -32,34 +33,39 @@ export default function ActivityFeed({ onVenueClick, limit, userId }: ActivityFe
   }, [userId])
 
   const loadActivities = async () => {
-    try {
-      let query = supabase
-        .from('activity_feed_view')
-        .select('*')
-        .order('created_at', { ascending: false })
+    const data = await withErrorHandling(
+      async () => {
+        let query = supabase
+          .from('activity_feed_view')
+          .select('*')
+          .order('created_at', { ascending: false })
 
-      if (userId) {
-        query = query.eq('user_id', userId)
-      }
+        if (userId) {
+          query = query.eq('user_id', userId)
+        }
 
-      if (limit) {
-        query = query.limit(limit)
-      } else {
-        query = query.limit(50)
-      }
+        if (limit) {
+          query = query.limit(limit)
+        } else {
+          query = query.limit(50)
+        }
 
-      const { data, error } = await query
+        const { data, error } = await query
 
-      if (error) {
-        console.error('Error loading activities:', error)
-        return
-      }
+        if (error) throw error
 
-      setActivities(data || [])
-    } catch (error) {
-      console.error('Error loading activities:', error)
-    } finally {
-      setLoading(false)
+        return data || []
+      },
+      'Error al cargar actividad',
+      { userId, limit }
+    )
+
+    setLoading(false)
+    if (data) {
+      setActivities(data)
+      logger.trackEvent('activities_loaded', { userId, count: data.length })
+    } else {
+      setActivities([])
     }
   }
 
