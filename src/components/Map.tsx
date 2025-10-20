@@ -21,6 +21,19 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
     zoom: 13
   })
   const [isLocating, setIsLocating] = useState(false)
+  const [currentZoom, setCurrentZoom] = useState(13)
+  
+  // Función para calcular el tamaño del marcador basado en el zoom
+  const getMarkerScale = (zoom: number) => {
+    // Zoom base es 13, con escala de 1
+    // A zoom 10 (alejado) -> escala 0.6
+    // A zoom 16 (cerca) -> escala 1.4
+    const baseZoom = 13
+    const minScale = 0.5
+    const maxScale = 1.5
+    const scale = Math.min(maxScale, Math.max(minScale, 1 + (zoom - baseZoom) * 0.15))
+    return scale
+  }
   
   useImperativeHandle(ref, () => ({
     flyTo: (options: any) => {
@@ -178,18 +191,30 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
           glowColor = 'rgba(74, 85, 104, 0.4)'
         }
         
-        // Crear elemento HTML para el marcador
+        // Calcular escala inicial basada en el zoom actual
+        const scale = getMarkerScale(currentZoom)
+        
+        // Crear elemento wrapper para el marcador (sin transformaciones)
         const el = document.createElement('div')
+        el.className = 'venue-marker-wrapper'
         el.style.position = 'absolute'
         el.style.cursor = 'pointer'
-        el.style.width = '50px'
-        el.style.height = '65px'
-        el.style.display = 'flex'
-        el.style.flexDirection = 'column'
-        el.style.alignItems = 'center'
         
-        // Pin con círculo perfecto y triángulo
-        el.innerHTML = `
+        // Crear contenedor interno que se escalará
+        const innerContainer = document.createElement('div')
+        innerContainer.className = 'venue-marker-inner'
+        innerContainer.style.width = '50px'
+        innerContainer.style.height = '65px'
+        innerContainer.style.display = 'flex'
+        innerContainer.style.flexDirection = 'column'
+        innerContainer.style.alignItems = 'center'
+        innerContainer.style.transformOrigin = 'bottom center'
+        innerContainer.style.transform = `scale(${scale})`
+        innerContainer.style.transition = 'transform 0.3s ease'
+        innerContainer.style.willChange = 'transform'
+        
+        // Pin con círculo perfecto y triángulo (tamaños fijos)
+        innerContainer.innerHTML = `
           <div style="
             width: 50px;
             height: 50px;
@@ -207,7 +232,6 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
             font-weight: bold;
             color: white;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-            transition: all 0.3s ease;
           ">${count}</div>
           <div style="
             width: 0;
@@ -220,30 +244,28 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
           "></div>
         `
         
+        el.appendChild(innerContainer)
+        
         // Añadir evento de click
         el.addEventListener('click', () => {
           onVenueClick(venue)
         })
         
-        // Efecto hover
+        // Efecto hover - aumentar ligeramente el scale del contenedor interno
         el.addEventListener('mouseenter', () => {
-          const circle = el.querySelector('div')
-          if (circle) {
-            circle.style.transform = 'scale(1.1)'
-          }
+          const currentScale = getMarkerScale(currentZoom)
+          innerContainer.style.transform = `scale(${currentScale * 1.1})`
         })
         
         el.addEventListener('mouseleave', () => {
-          const circle = el.querySelector('div')
-          if (circle) {
-            circle.style.transform = 'scale(1)'
-          }
+          const currentScale = getMarkerScale(currentZoom)
+          innerContainer.style.transform = `scale(${currentScale})`
         })
         
         // Crear y añadir el marcador al mapa
         const marker = new maplibregl.Marker({ 
           element: el,
-          anchor: 'bottom'
+          anchor: 'bottom' // Anclar en la parte inferior del wrapper (punta del pin)
         })
           .setLngLat([venue.lng, venue.lat])
           .addTo(map)
@@ -269,22 +291,43 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
     }
   }, [venues, selectedVenueId, onVenueClick])
   
+  // Actualizar escala de marcadores cuando cambie el zoom
+  useEffect(() => {
+    if (markersRef.current.length === 0) return
+    
+    const scale = getMarkerScale(currentZoom)
+    
+    markersRef.current.forEach((marker) => {
+      const el = marker.getElement()
+      if (el && el.classList.contains('venue-marker-wrapper')) {
+        // Buscar el contenedor interno y aplicar el scale
+        const innerContainer = el.querySelector('.venue-marker-inner') as HTMLElement
+        if (innerContainer) {
+          innerContainer.style.transform = `scale(${scale})`
+        }
+      }
+    })
+  }, [currentZoom])
+  
   return (
     <div className="w-full h-full relative">
       <MapGL
         ref={mapRef}
         {...viewState}
-        onMove={evt => setViewState(evt.viewState)}
+        onMove={evt => {
+          setViewState(evt.viewState)
+          setCurrentZoom(evt.viewState.zoom)
+        }}
         style={{ width: '100%', height: '100%' }}
         mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
         attributionControl={false}
       />
       
-      {/* Botón de ubicación - centrado encima de la barra de navegación */}
+      {/* Botón de ubicación - arriba a la derecha debajo del botón de filtro */}
       <button
         onClick={goToUserLocation}
         disabled={isLocating}
-        className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-[#1a1a2e] hover:bg-[#252541] text-white rounded-full p-3 shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border border-gray-700 hover:border-cyan-500"
+        className="absolute top-16 right-4 bg-dark-secondary/80 backdrop-blur-sm hover:bg-dark-secondary text-white rounded-full p-2 shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border border-text-secondary/20"
         style={{
           boxShadow: '0 0 20px rgba(0, 255, 255, 0.3), 0 4px 6px rgba(0, 0, 0, 0.5)'
         }}

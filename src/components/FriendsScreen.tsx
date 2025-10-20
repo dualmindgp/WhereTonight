@@ -18,9 +18,10 @@ interface Friend {
 interface FriendsScreenProps {
   user: User
   onBack: () => void
+  onFriendClick?: (friendId: string) => void
 }
 
-export default function FriendsScreen({ user, onBack }: FriendsScreenProps) {
+export default function FriendsScreen({ user, onBack, onFriendClick }: FriendsScreenProps) {
   const toast = useToastContext()
   const [friends, setFriends] = useState<Friend[]>([])
   const [loading, setLoading] = useState(true)
@@ -156,9 +157,10 @@ export default function FriendsScreen({ user, onBack }: FriendsScreenProps) {
         ) : (
           <div className="space-y-3">
             {friends.map((friend) => (
-              <div
+              <button
                 key={friend.id}
-                className="bg-dark-card/50 backdrop-blur-sm rounded-2xl p-4 border border-neon-cyan/20 hover:border-neon-cyan/40 transition-all"
+                onClick={() => onFriendClick?.(friend.id)}
+                className="w-full bg-dark-card/50 backdrop-blur-sm rounded-2xl p-4 border border-neon-cyan/20 hover:border-neon-cyan/40 transition-all text-left"
               >
                 <div className="flex items-center gap-4">
                   {/* Avatar */}
@@ -182,7 +184,7 @@ export default function FriendsScreen({ user, onBack }: FriendsScreenProps) {
                     <p className="text-text-secondary text-sm">Amigo</p>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

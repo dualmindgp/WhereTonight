@@ -24,6 +24,7 @@ import FavoritesScreen from '@/components/FavoritesScreen'
 import HistoryScreen from '@/components/HistoryScreen'
 import SplashScreen from '@/components/SplashScreen'
 import FriendsScreen from '@/components/FriendsScreen'
+import FriendProfileScreen from '@/components/FriendProfileScreen'
 import useSwipe from '@/hooks/useSwipe'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { MapPin, Edit, Home as HomeIcon, Search as SearchIcon, User as UserIcon, MessageCircle } from 'lucide-react'
@@ -42,6 +43,8 @@ export default function Home() {
   const [showFavorites, setShowFavorites] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showFriends, setShowFriends] = useState(false)
+  const [showFriendProfile, setShowFriendProfile] = useState(false)
+  const [selectedFriendId, setSelectedFriendId] = useState<string | null>(null)
   const [profile, setProfile] = useState<any>(null)
   const [filters, setFilters] = useState<FilterOptions>({ priceRange: [], minRating: 0, sortBy: 'popularity' })
   const [filteredVenues, setFilteredVenues] = useState<VenueWithCount[]>([])
@@ -295,10 +298,6 @@ export default function Home() {
                 }}
                 onSearchFriends={() => console.log('Search friends clicked')}
                 onFilterClick={() => setShowFilterModal(true)}
-                topVenues={displayVenues
-                  .filter(v => v.count_today > 0)
-                  .slice(0, 6)
-                  .map(v => ({ name: v.name, count: v.count_today }))}
               />
             </div>
           )}
@@ -365,10 +364,38 @@ export default function Home() {
             )
           ) : showFriends ? (
             user && (
-              <FriendsScreen 
-                user={user}
-                onBack={() => setShowFriends(false)}
-              />
+              showFriendProfile && selectedFriendId ? (
+                <FriendProfileScreen
+                  friendId={selectedFriendId}
+                  currentUserId={user.id}
+                  onBack={() => {
+                    setShowFriendProfile(false)
+                    setSelectedFriendId(null)
+                  }}
+                  onVenueClick={(venueId) => {
+                    const venue = venues.find(v => v.id === venueId)
+                    if (venue) {
+                      setShowFriendProfile(false)
+                      setShowFriends(false)
+                      setNavTab('home')
+                      handleVenueClick(venue)
+                    }
+                  }}
+                  onFriendClick={(friendId) => {
+                    setSelectedFriendId(friendId)
+                    // Mantener showFriendProfile en true para navegar a otro perfil
+                  }}
+                />
+              ) : (
+                <FriendsScreen 
+                  user={user}
+                  onBack={() => setShowFriends(false)}
+                  onFriendClick={(friendId) => {
+                    setSelectedFriendId(friendId)
+                    setShowFriendProfile(true)
+                  }}
+                />
+              )
             )
           ) : user ? (
             <ProfileScreenV2

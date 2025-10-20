@@ -2,14 +2,12 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { MapPin, Search, SlidersHorizontal, X } from 'lucide-react'
-import LogoLoop from './LogoLoop'
 import { logger } from '@/lib/logger'
 
 interface TopNavBarProps {
   onCityChange?: (location: { name: string; lat: number; lng: number }) => void
   onSearchFriends?: () => void
   onFilterClick?: () => void
-  topVenues?: Array<{ name: string; count: number }>
 }
 
 interface SearchResult {
@@ -23,8 +21,7 @@ interface SearchResult {
 export default function TopNavBar({ 
   onCityChange, 
   onSearchFriends,
-  onFilterClick,
-  topVenues = []
+  onFilterClick
 }: TopNavBarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -173,41 +170,6 @@ export default function TopNavBar({
             )}
           </div>
         )}
-      </div>
-
-      {/* Logo Loop in the center */}
-      <div className="flex-1 overflow-hidden px-2">
-        <LogoLoop
-          logos={
-            topVenues.length > 0
-              ? [
-                  { node: <span className="text-neon-pink font-bold text-lg">🔥 TRENDING</span> },
-                  ...topVenues.slice(0, 5).map(venue => ({
-                    node: (
-                      <span className="text-neon-cyan font-semibold">
-                        {venue.name} ({venue.count})
-                      </span>
-                    )
-                  }))
-                ]
-              : [
-                  { node: <span className="text-neon-pink font-bold text-lg">🎉 HOT NOW</span> },
-                  { node: <span className="text-neon-cyan font-semibold">Platinium</span> },
-                  { node: <span className="text-neon-purple font-semibold">VooDoo Club</span> },
-                  { node: <span className="text-neon-blue font-semibold">Level 27</span> },
-                  { node: <span className="text-neon-pink font-semibold">Smolna</span> },
-                  { node: <span className="text-neon-cyan font-semibold">Sketch</span> },
-                ]
-          }
-          speed={60}
-          direction="left"
-          logoHeight={20}
-          gap={24}
-          pauseOnHover={true}
-          fadeOut={true}
-          fadeOutColor="rgba(11, 11, 11, 1)"
-          scaleOnHover={false}
-        />
       </div>
 
       {/* Filter Button */}
