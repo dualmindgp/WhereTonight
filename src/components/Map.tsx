@@ -251,17 +251,6 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
           onVenueClick(venue)
         })
         
-        // Efecto hover - aumentar ligeramente el scale del contenedor interno
-        el.addEventListener('mouseenter', () => {
-          const currentScale = getMarkerScale(currentZoom)
-          innerContainer.style.transform = `scale(${currentScale * 1.1})`
-        })
-        
-        el.addEventListener('mouseleave', () => {
-          const currentScale = getMarkerScale(currentZoom)
-          innerContainer.style.transform = `scale(${currentScale})`
-        })
-        
         // Crear y añadir el marcador al mapa
         const marker = new maplibregl.Marker({ 
           element: el,

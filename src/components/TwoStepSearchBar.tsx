@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { Search, MapPin, X, Navigation, Clock, Star } from 'lucide-react'
+import { Search, MapPin, X, Navigation, Star } from 'lucide-react'
 import { logger } from '@/lib/logger'
 
 interface SearchResult {
@@ -16,9 +16,10 @@ interface SearchResult {
 interface TwoStepSearchBarProps {
   onCitySelected: (city: { name: string; lat: number; lng: number }) => void
   onVenueSearch: (query: string) => void
-  onFilterChange: (filter: 'nearby' | 'open' | 'rated' | null) => void
+  onFilterChange: (filter: 'nearby' | 'rated', isActive: boolean) => void
   onClear: () => void
   resultsCount: number
+  activeFilters: Set<'nearby' | 'rated'>
 }
 
 export default function TwoStepSearchBar({
@@ -26,7 +27,8 @@ export default function TwoStepSearchBar({
   onVenueSearch,
   onFilterChange,
   onClear,
-  resultsCount
+  resultsCount,
+  activeFilters
 }: TwoStepSearchBarProps) {
   const [step, setStep] = useState<'city' | 'venue'>('city')
   const [cityQuery, setCityQuery] = useState('')
@@ -34,7 +36,6 @@ export default function TwoStepSearchBar({
   const [selectedCity, setSelectedCity] = useState<string | null>(null)
   const [cityResults, setCityResults] = useState<SearchResult[]>([])
   const [showCityResults, setShowCityResults] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<'nearby' | 'open' | 'rated' | null>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -124,14 +125,12 @@ export default function TwoStepSearchBar({
     setSelectedCity(null)
     setCityResults([])
     setShowCityResults(false)
-    setActiveFilter(null)
     onClear()
   }
 
-  const handleFilterClick = (filter: 'nearby' | 'open' | 'rated') => {
-    const newFilter = activeFilter === filter ? null : filter
-    setActiveFilter(newFilter)
-    onFilterChange(newFilter)
+  const handleFilterClick = (filter: 'nearby' | 'rated') => {
+    const isCurrentlyActive = activeFilters.has(filter)
+    onFilterChange(filter, !isCurrentlyActive)
   }
 
   const getPlaceholder = () => {
@@ -210,7 +209,7 @@ export default function TwoStepSearchBar({
           <button
             onClick={() => handleFilterClick('nearby')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-              activeFilter === 'nearby'
+              activeFilters.has('nearby')
                 ? 'bg-neon-blue text-white shadow-md shadow-neon-blue/30'
                 : 'bg-dark-secondary text-text-light border border-neon-blue/30 hover:border-neon-blue'
             }`}
@@ -219,20 +218,9 @@ export default function TwoStepSearchBar({
             Cerca de mí
           </button>
           <button
-            onClick={() => handleFilterClick('open')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-              activeFilter === 'open'
-                ? 'bg-neon-pink text-white shadow-md shadow-neon-pink/30'
-                : 'bg-dark-secondary text-text-light border border-neon-pink/30 hover:border-neon-pink'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            Abierto ahora
-          </button>
-          <button
             onClick={() => handleFilterClick('rated')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-              activeFilter === 'rated'
+              activeFilters.has('rated')
                 ? 'bg-neon-purple text-white shadow-md shadow-neon-purple/30'
                 : 'bg-dark-secondary text-text-light border border-neon-purple/30 hover:border-neon-purple'
             }`}
@@ -248,9 +236,8 @@ export default function TwoStepSearchBar({
         <div className="text-sm text-text-secondary">
           <span className="text-neon-blue font-semibold">{resultsCount}</span> locales encontrados
           {venueQuery && ` para "${venueQuery}"`}
-          {activeFilter === 'nearby' && ' cerca de ti'}
-          {activeFilter === 'open' && ' abiertos ahora'}
-          {activeFilter === 'rated' && ' mejor valorados'}
+          {activeFilters.has('nearby') && ' cerca de ti'}
+          {activeFilters.has('rated') && ' mejor valorados'}
         </div>
       )}
 

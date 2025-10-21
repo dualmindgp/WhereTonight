@@ -325,7 +325,11 @@ export default function Home() {
         </div>
         
         {navTab === 'search' && (
-          <SearchScreen venues={displayVenues} onVenueClick={handleVenueClick} />
+          <SearchScreen 
+            venues={displayVenues} 
+            onVenueClick={handleVenueClick}
+            onNavigateToMap={() => setNavTab('home')}
+          />
         )}
         
         {navTab === 'social' && (

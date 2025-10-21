@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Search, Users, Star, DollarSign, MapPin } from 'lucide-react'
 import { VenueWithCount } from '@/lib/database.types'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -9,15 +9,17 @@ import TwoStepSearchBar from './TwoStepSearchBar'
 interface SearchScreenProps {
   venues: VenueWithCount[]
   onVenueClick: (venue: VenueWithCount) => void
+  onNavigateToMap?: () => void
 }
 
-export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps) {
+export default function SearchScreen({ venues, onVenueClick, onNavigateToMap }: SearchScreenProps) {
   const { t } = useLanguage()
   const [venueSearchQuery, setVenueSearchQuery] = useState('')
   const [selectedCity, setSelectedCity] = useState<{ name: string; lat: number; lng: number } | null>(null)
-  const [activeFilter, setActiveFilter] = useState<'nearby' | 'open' | 'rated' | null>(null)
+  const [activeFilters, setActiveFilters] = useState<Set<'nearby' | 'rated'>>(new Set())
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const distanceRef = userLocation || selectedCity
+  const autoNearbyActivatedForCityRef = useRef<string | null>(null) // Rastrear para qué ciudad se activó automáticamente
 
   // Distancias memoizadas por venue.id contra la referencia (userLocation o ciudad)
   const distancesById = useMemo(() => {
@@ -51,11 +53,16 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
   }, [])
 
   // Si tenemos ubicación del usuario y una ciudad seleccionada, activar automáticamente el filtro "Cerca de mí"
+  // Solo se activa una vez por ciudad, permitiendo que el usuario lo desactive manualmente
   useEffect(() => {
-    if (userLocation && selectedCity && activeFilter !== 'nearby') {
-      setActiveFilter('nearby')
+    const cityKey = selectedCity ? `${selectedCity.name}_${selectedCity.lat}_${selectedCity.lng}` : null
+    
+    if (userLocation && selectedCity && cityKey && autoNearbyActivatedForCityRef.current !== cityKey) {
+      // Activar el filtro nearby solo si no se ha activado antes para esta ciudad
+      setActiveFilters(prev => new Set(prev).add('nearby'))
+      autoNearbyActivatedForCityRef.current = cityKey
     }
-  }, [userLocation, selectedCity, activeFilter])
+  }, [userLocation, selectedCity])
 
   // Filtrar venues por ciudad (usando proximidad geográfica)
   const venuesByCity = useMemo(() => {
@@ -91,24 +98,39 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
     }
 
     // Aplicar filtros rápidos
-    if (activeFilter === 'nearby') {
-      // Ordenar por distancia (más cercanos primero) usando el mapa de distancias memoizado
-      if (distanceRef) {
-        filtered = [...filtered].sort((a, b) => {
+    const hasNearby = activeFilters.has('nearby')
+    const hasRated = activeFilters.has('rated')
+    
+    if (hasNearby || hasRated) {
+      // Si hay filtros activos, ordenar según prioridad
+      filtered = [...filtered].sort((a, b) => {
+        // 1. Si ambos filtros están activos, primero ordenar por rating, luego por distancia
+        if (hasRated && hasNearby && distanceRef) {
+          const ratingDiff = (b.rating || 0) - (a.rating || 0)
+          if (Math.abs(ratingDiff) > 0.1) return ratingDiff // Si hay diferencia significativa en rating
+          // Si rating similar, ordenar por distancia
+          const distA = distancesById[a.id] ?? Number.POSITIVE_INFINITY
+          const distB = distancesById[b.id] ?? Number.POSITIVE_INFINITY
+          return distA - distB
+        }
+        
+        // 2. Solo filtro de rating
+        if (hasRated && !hasNearby) {
+          return (b.rating || 0) - (a.rating || 0)
+        }
+        
+        // 3. Solo filtro de distancia
+        if (hasNearby && !hasRated && distanceRef) {
           const distA = distancesById[a.id] ?? Number.POSITIVE_INFINITY
           const distB = distancesById[b.id] ?? Number.POSITIVE_INFINITY
           if (distA === distB) return a.name.localeCompare(b.name)
           return distA - distB
-        })
-      }
-    } else if (activeFilter === 'open') {
-      // Filtrar solo los que tienen opening_hours (simplificado)
-      filtered = filtered.filter(v => v.opening_hours)
-    } else if (activeFilter === 'rated') {
-      // Ordenar por rating (mejor valorados primero)
-      filtered = [...filtered].sort((a, b) => (b.rating || 0) - (a.rating || 0))
+        }
+        
+        return 0
+      })
     } else {
-      // Por defecto: si tenemos referencia de distancia, ordenar por distancia; si no, por popularidad
+      // Sin filtros: ordenar por distancia si hay referencia, sino por popularidad
       if (distanceRef) {
         filtered = [...filtered].sort((a, b) => {
           const distA = distancesById[a.id] ?? Number.POSITIVE_INFINITY
@@ -122,7 +144,7 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
     }
 
     return filtered
-  }, [venuesByCity, venueSearchQuery, activeFilter, selectedCity, userLocation, distanceRef, distancesById])
+  }, [venuesByCity, venueSearchQuery, activeFilters, selectedCity, userLocation, distanceRef, distancesById])
 
   // Función para calcular distancia entre dos puntos geográficos
   function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -146,21 +168,30 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
   const handleCitySelected = (city: { name: string; lat: number; lng: number }) => {
     setSelectedCity(city)
     setVenueSearchQuery('')
-    setActiveFilter(null)
+    setActiveFilters(new Set())
+    // Resetear el ref para permitir auto-activación en la nueva ciudad
+    autoNearbyActivatedForCityRef.current = null
   }
 
   const handleVenueSearch = (query: string) => {
     setVenueSearchQuery(query)
   }
 
-  const handleFilterChange = (filter: 'nearby' | 'open' | 'rated' | null) => {
-    setActiveFilter(filter)
+  const handleFilterChange = (filter: 'nearby' | 'rated', isActive: boolean) => {
+    const newFilters = new Set(activeFilters)
+    if (isActive) {
+      newFilters.add(filter)
+    } else {
+      newFilters.delete(filter)
+    }
+    setActiveFilters(newFilters)
   }
 
   const handleClear = () => {
     setSelectedCity(null)
     setVenueSearchQuery('')
-    setActiveFilter(null)
+    setActiveFilters(new Set())
+    autoNearbyActivatedForCityRef.current = null
   }
 
   const renderPriceLevel = (level?: number | null) => {
@@ -186,6 +217,7 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
         onFilterChange={handleFilterChange}
         onClear={handleClear}
         resultsCount={filteredVenues.length}
+        activeFilters={activeFilters}
       />
 
       {/* Venues list */}
@@ -216,7 +248,10 @@ export default function SearchScreen({ venues, onVenueClick }: SearchScreenProps
             {filteredVenues.map((venue) => (
               <div
                 key={venue.id}
-                onClick={() => onVenueClick(venue)}
+                onClick={() => {
+                  onNavigateToMap?.()
+                  onVenueClick(venue)
+                }}
                 className="bg-dark-card rounded-lg overflow-hidden cursor-pointer hover:bg-dark-secondary transition-colors border border-neon-blue/10"
               >
                 <div className="flex">
