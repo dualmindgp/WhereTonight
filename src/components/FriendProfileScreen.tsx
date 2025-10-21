@@ -161,82 +161,51 @@ export default function FriendProfileScreen({
   }
 
   const loadFriendsOfFriend = async () => {
-    console.log('🔍 [FriendProfile] Cargando amigos del perfil', { friendId, currentUserId })
     logger.info('Cargando amigos del perfil', { friendId, currentUserId })
     setLoadingFriends(true)
     
     const success = await withErrorHandling(
       async () => {
-        // TEST: Ver TODAS las amistades de este usuario sin filtros
-        const { data: testData, error: testError } = await supabase
-          .from('friendships')
-          .select('*')
-          .or(`user_id.eq.${friendId},friend_id.eq.${friendId}`)
+        // Obtener amistades del perfil usando la API (evita RLS)
+        const response = await fetch(`/api/friendships/${friendId}`)
         
-        console.log('🧪 [TEST] Todas las relaciones del perfil (sin filtrar):', {
-          count: testData?.length || 0,
-          data: testData,
-          error: testError
-        })
+        if (!response.ok) {
+          throw new Error('Error al obtener amistades')
+        }
         
-        // Obtener amistades del amigo (solo accepted)
-        const { data: friendshipsData, error: friendshipsError } = await supabase
-          .from('friendships')
-          .select('user_id, friend_id, status')
-          .or(`user_id.eq.${friendId},friend_id.eq.${friendId}`)
-          .eq('status', 'accepted')
-
-        if (friendshipsError) throw friendshipsError
-
-        console.log('📊 [FriendProfile] Amistades encontradas:', { 
-          count: friendshipsData?.length || 0,
-          data: friendshipsData 
-        })
-        logger.info('Amistades encontradas', { 
-          count: friendshipsData?.length || 0,
-          data: friendshipsData 
-        })
+        const friendshipsData = await response.json()
 
         if (!friendshipsData || friendshipsData.length === 0) {
-          console.log('❌ [FriendProfile] No hay amistades en la BD')
           setFriendsCount(0)
           setFriends([])
           return true
         }
+        
+        logger.info('Amistades aceptadas', { count: friendshipsData.length })
 
         // Obtener IDs de amigos
-        const friendIdsRaw = friendshipsData.map(f => 
-          f.user_id === friendId ? f.friend_id : f.user_id
-        )
+        // Si user_id es el perfil que estamos viendo, el amigo es friend_id
+        // Si friend_id es el perfil que estamos viendo, el amigo es user_id
+        const friendIdsRaw = friendshipsData.map((f: any) => {
+          if (f.user_id === friendId) {
+            return f.friend_id
+          } else if (f.friend_id === friendId) {
+            return f.user_id
+          }
+          // Esto no debería pasar, pero por seguridad
+          return f.user_id
+        })
         
         // Filtrar al usuario actual de la lista
-        const friendIds = friendIdsRaw.filter(id => id !== currentUserId)
+        const friendIds = friendIdsRaw.filter((id: string) => id !== currentUserId)
 
-        console.log('🔄 [FriendProfile] IDs procesados:', { 
-          totalFriendships: friendshipsData.length,
-          friendIdsRaw,
-          currentUserId,
-          friendIdsFiltered: friendIds,
-          removedCurrentUser: friendIdsRaw.length !== friendIds.length,
-          count: friendIds.length
-        })
-        logger.info('IDs procesados', { 
-          totalFriendships: friendshipsData.length,
-          friendIdsBeforeFilter: friendshipsData.map(f => 
-            f.user_id === friendId ? f.friend_id : f.user_id
-          ),
-          currentUserId,
-          friendIdsAfterFilter: friendIds,
-          count: friendIds.length
-        })
+        logger.info('Amigos encontrados', { count: friendIds.length })
 
         // Establecer el conteo DESPUÉS del filtrado
         setFriendsCount(friendIds.length)
 
         if (friendIds.length === 0) {
-          console.log('⚠️ [FriendProfile] No hay amigos después del filtrado')
           setFriends([])
-          logger.warn('No hay amigos después del filtrado')
           return true
         }
 
@@ -248,21 +217,11 @@ export default function FriendProfileScreen({
 
         if (profilesError) throw profilesError
 
-        console.log('👤 [FriendProfile] Perfiles cargados:', { count: profilesData?.length || 0, profiles: profilesData })
-        logger.info('Perfiles cargados', { count: profilesData?.length || 0 })
-
         // Obtener TODAS las relaciones de amistad del usuario actual de una vez
         const { data: currentUserFriendships } = await supabase
           .from('friendships')
           .select('user_id, friend_id, status')
           .or(`user_id.eq.${currentUserId},friend_id.eq.${currentUserId}`)
-
-        console.log('🔗 [FriendProfile] Relaciones del usuario actual:', { 
-          count: currentUserFriendships?.length || 0, 
-          currentUserId,
-          relationships: currentUserFriendships 
-        })
-        logger.info('Relaciones del usuario actual', { count: currentUserFriendships?.length || 0 })
 
         // Crear un mapa de estado de amistad
         const friendshipStatusMap = new Map<string, { status: string, isSender: boolean }>()
@@ -271,7 +230,6 @@ export default function FriendProfileScreen({
           const otherId = fs.user_id === currentUserId ? fs.friend_id : fs.user_id
           const isSender = fs.user_id === currentUserId
           friendshipStatusMap.set(otherId, { status: fs.status, isSender })
-          console.log(`📌 [FriendProfile] Mapeando relación: ${otherId} -> status: ${fs.status}, isSender: ${isSender}`)
         })
 
         // Crear array de amigos con estado
@@ -288,20 +246,13 @@ export default function FriendProfileScreen({
             }
           }
 
-          console.log(`👥 [FriendProfile] Estado para ${friendProfile.username} (${friendProfile.id}):`, {
-            hasRelationship: !!relationship,
-            relationshipStatus: relationship?.status,
-            finalStatus: status
-          })
-
           return {
             ...friendProfile,
             friendship_status: status
           }
         })
 
-        console.log('✅ [FriendProfile] Amigos procesados con estados:', { count: friendsWithStatus.length, friends: friendsWithStatus })
-        logger.info('Amigos procesados con estados', { count: friendsWithStatus.length })
+        logger.info('Amigos procesados', { count: friendsWithStatus.length })
         setFriends(friendsWithStatus)
         return true
       },
