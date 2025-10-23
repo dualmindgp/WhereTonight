@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 // Screens
@@ -9,7 +9,14 @@ import SearchScreen from '../screens/SearchScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
-const Tab = createBottomTabNavigator();
+export type RootTabParamList = {
+  Map: undefined;
+  Search: undefined;
+  Favorites: undefined;
+  Profile: undefined;
+};
+
+const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function AppNavigator() {
   return (
@@ -32,8 +39,13 @@ export default function AppNavigator() {
             return <Ionicons name={iconName} size={size} color={color} />;
           },
           tabBarActiveTintColor: '#8B5CF6',
-          tabBarInactiveTintColor: 'gray',
+          tabBarInactiveTintColor: '#999',
           headerShown: false,
+          tabBarStyle: {
+            backgroundColor: '#fff',
+            borderTopColor: '#eee',
+            borderTopWidth: 1,
+          },
         })}
       >
         <Tab.Screen 

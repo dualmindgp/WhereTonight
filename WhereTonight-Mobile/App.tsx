@@ -1,35 +1,21 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AppNavigator from './src/navigation/AppNavigator';
+import { ToastContainer } from './src/components/ToastContainer';
+import { VenueProvider } from './src/contexts/VenueContext';
+import { ToastProvider } from './src/contexts/ToastContext';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>🎉 WhereTonight Mobile</Text>
-      <Text style={styles.subtitle}>¡La app funciona correctamente!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <SafeAreaProvider>
+      <VenueProvider>
+        <ToastProvider>
+          <AppNavigator />
+          <ToastContainer />
+          <StatusBar style="auto" />
+        </ToastProvider>
+      </VenueProvider>
+    </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#8B5CF6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#fff',
-    textAlign: 'center',
-  },
-});
