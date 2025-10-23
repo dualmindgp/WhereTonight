@@ -1,148 +1,143 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Text, FlatList, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react'
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Heart, ChevronLeft } from 'lucide-react-native'
+import { supabase } from '../lib/supabase'
+import { VenueWithCount } from '../types/database.types'
+import { useToastContext } from '../contexts/ToastContext'
 
-const MOCK_FAVORITES = [
-  {
-    id: '1',
-    name: 'Bar Central',
-    description: 'Bar moderno en el centro',
-    rating: 4.5,
-    category: 'bar',
-  },
-];
+interface FavoritesScreenProps {
+  userId: string
+  onBack: () => void
+  onVenueClick?: (venue: VenueWithCount) => void
+}
 
-export default function FavoritesScreen() {
-  const [favorites, setFavorites] = useState(MOCK_FAVORITES);
+export default function FavoritesScreen({ userId, onBack, onVenueClick }: FavoritesScreenProps) {
+  const toast = useToastContext()
+  const [favorites, setFavorites] = useState<VenueWithCount[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const removeFavorite = (id: string) => {
-    setFavorites(favorites.filter((fav) => fav.id !== id));
-  };
+  useEffect(() => {
+    loadFavorites()
+  }, [userId])
+
+  const loadFavorites = async () => {
+    try {
+      setLoading(true)
+      const { data: favoriteIds, error: favError } = await supabase
+        .from('favorites')
+        .select('venue_id')
+        .eq('user_id', userId)
+
+      if (favError) throw favError
+
+      if (!favoriteIds || favoriteIds.length === 0) {
+        setFavorites([])
+        return
+      }
+
+      const venueIds = favoriteIds.map(f => f.venue_id)
+
+      const { data: venues, error: venueError } = await supabase
+        .from('venues')
+        .select('*')
+        .in('id', venueIds)
+
+      if (venueError) throw venueError
+
+      const { data: ticketsData } = await supabase
+        .rpc('tickets_count_today_euwarsaw')
+
+      const countMap = new Map(
+        (ticketsData || []).map((t: any) => [t.venue_id, t.count_today])
+      )
+
+      const venuesWithCount = (venues || []).map(venue => ({
+        ...venue,
+        count_today: countMap.get(venue.id) || 0
+      }))
+
+      setFavorites(venuesWithCount)
+    } catch (error) {
+      console.error('Error loading favorites:', error)
+      toast.error('Error al cargar favoritos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const removeFavorite = async (venueId: string) => {
+    try {
+      const { error } = await supabase
+        .from('favorites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('venue_id', venueId)
+
+      if (error) throw error
+
+      setFavorites(favorites.filter(v => v.id !== venueId))
+      toast.success('Eliminado de favoritos')
+    } catch (error) {
+      console.error('Error removing favorite:', error)
+      toast.error('Error al eliminar favorito')
+    }
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>❤️ Mis Favoritos</Text>
+    <SafeAreaView className="flex-1 bg-dark-primary">
+      <View className="flex-row items-center gap-3 px-4 py-4 bg-dark-card border-b border-neon-blue/20">
+        <TouchableOpacity onPress={onBack} className="p-2">
+          <ChevronLeft className="w-6 h-6 text-text-light" />
+        </TouchableOpacity>
+        <Heart className="w-6 h-6 text-neon-pink" />
+        <Text className="text-xl font-bold text-white">Mis Favoritos</Text>
       </View>
 
-      {favorites.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="heart-outline" size={48} color="#ddd" />
-          <Text style={styles.emptyText}>Aún no tienes favoritos guardados</Text>
-          <Text style={styles.emptySubtext}>
+      {loading ? (
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#00D9FF" />
+        </View>
+      ) : favorites.length === 0 ? (
+        <View className="flex-1 justify-center items-center px-6">
+          <Heart className="w-16 h-16 text-text-secondary mb-4" />
+          <Text className="text-xl font-bold text-text-light mb-2">Sin favoritos</Text>
+          <Text className="text-text-secondary text-center">
             Guarda tus locales favoritos para acceder rápidamente
           </Text>
         </View>
       ) : (
         <FlatList
           data={favorites}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <View style={styles.favoriteCard}>
-              <View style={styles.favoriteContent}>
-                <Text style={styles.favoriteName}>{item.name}</Text>
-                <Text style={styles.favoriteDesc}>{item.description}</Text>
-                <View style={styles.favoriteFooter}>
-                  <Text style={styles.favoriteRating}>⭐ {item.rating}</Text>
-                  <Text style={styles.favoriteCategory}>{item.category}</Text>
+            <TouchableOpacity
+              onPress={() => onVenueClick?.(item)}
+              className="mx-4 my-2 bg-dark-card rounded-2xl p-4 border border-neon-pink/20 flex-row items-center gap-4"
+            >
+              <View className="flex-1">
+                <Text className="text-lg font-bold text-white">{item.name}</Text>
+                <Text className="text-text-secondary text-sm">{item.address}</Text>
+                <View className="flex-row gap-2 mt-2">
+                  {item.rating && (
+                    <Text className="text-neon-blue text-xs">⭐ {item.rating}</Text>
+                  )}
+                  {item.count_today > 0 && (
+                    <Text className="text-neon-cyan text-xs">👥 {item.count_today} hoy</Text>
+                  )}
                 </View>
               </View>
               <TouchableOpacity
                 onPress={() => removeFavorite(item.id)}
-                style={styles.removeButton}
+                className="p-2"
               >
-                <Ionicons name="heart" size={24} color="#FF6B6B" />
+                <Heart className="w-6 h-6 text-neon-pink fill-neon-pink" />
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           )}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ paddingVertical: 16 }}
         />
       )}
     </SafeAreaView>
-  );
+  )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-  },
-  listContent: {
-    padding: 15,
-  },
-  favoriteCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#FFE0E0',
-  },
-  favoriteContent: {
-    flex: 1,
-  },
-  favoriteName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#000',
-    marginBottom: 5,
-  },
-  favoriteDesc: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 8,
-  },
-  favoriteFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  favoriteRating: {
-    fontSize: 12,
-    color: '#8B5CF6',
-    fontWeight: '600',
-  },
-  favoriteCategory: {
-    fontSize: 11,
-    backgroundColor: '#FFE0E0',
-    color: '#FF6B6B',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  removeButton: {
-    padding: 8,
-  },
-});

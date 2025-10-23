@@ -1,65 +1,56 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-export interface Venue {
-  id: string;
-  name: string;
-  description?: string;
-  latitude: number;
-  longitude: number;
-  address?: string;
-  image_url?: string;
-  rating?: number;
-  category?: string;
-}
+import { VenueWithCount, Venue } from '../types/database.types';
+import { supabase } from '../lib/supabase';
 
 interface VenueContextType {
-  venues: Venue[];
-  setVenues: (venues: Venue[]) => void;
+  venues: VenueWithCount[];
+  setVenues: (venues: VenueWithCount[]) => void;
   loadVenues: () => Promise<void>;
   isLoading: boolean;
-  selectedVenue: Venue | null;
-  setSelectedVenue: (venue: Venue | null) => void;
+  selectedVenue: VenueWithCount | null;
+  setSelectedVenue: (venue: VenueWithCount | null) => void;
 }
 
 const VenueContext = createContext<VenueContextType | undefined>(undefined);
 
 export function VenueProvider({ children }: { children: ReactNode }) {
-  const [venues, setVenues] = useState<Venue[]>([]);
+  const [venues, setVenues] = useState<VenueWithCount[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
+  const [selectedVenue, setSelectedVenue] = useState<VenueWithCount | null>(null);
 
   const loadVenues = async () => {
     if (isLoading) return;
 
     try {
       setIsLoading(true);
-      // Aquí irá la lógica para cargar venues desde Supabase
-      // Por ahora, datos de ejemplo
-      const mockVenues: Venue[] = [
-        {
-          id: '1',
-          name: 'Bar Central',
-          description: 'Bar moderno en el centro',
-          latitude: 40.4168,
-          longitude: -3.7038,
-          address: 'Calle Principal 123',
-          rating: 4.5,
-          category: 'bar',
-        },
-        {
-          id: '2',
-          name: 'Discoteca Noche',
-          description: 'Discoteca con música en vivo',
-          latitude: 40.4200,
-          longitude: -3.7000,
-          address: 'Avenida del Paseo 456',
-          rating: 4.2,
-          category: 'nightclub',
-        },
-      ];
-      setVenues(mockVenues);
+      const { data: venuesData, error: venuesError } = await supabase
+        .from('venues')
+        .select('*')
+        .eq('is_active', true) as { data: Venue[] | null; error: any };
+
+      if (venuesError) throw venuesError;
+
+      if (!venuesData) {
+        setVenues([]);
+        return;
+      }
+
+      const { data: ticketsData } = await supabase
+        .rpc('tickets_count_today_euwarsaw');
+
+      const countMap = new Map(
+        (ticketsData || []).map((t: any) => [t.venue_id, t.count_today])
+      );
+
+      const venuesWithCount: VenueWithCount[] = (venuesData as Venue[]).map(venue => ({
+        ...venue,
+        count_today: countMap.get(venue.id) || 0
+      }));
+
+      setVenues(venuesWithCount);
     } catch (error) {
       console.error('Error loading venues:', error);
+      setVenues([]);
     } finally {
       setIsLoading(false);
     }

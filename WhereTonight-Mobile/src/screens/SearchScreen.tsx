@@ -1,21 +1,65 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, TextInput, FlatList, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TextInput, FlatList, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVenues } from '../contexts/VenueContext';
+import { VenueWithCount } from '../types/database.types';
 import { Ionicons } from '@expo/vector-icons';
+
+interface FilterOptions {
+  priceRange: string[];
+  minRating: number;
+  sortBy: 'popularity' | 'rating' | 'price';
+}
 
 export default function SearchScreen() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<FilterOptions>({
+    priceRange: [],
+    minRating: 0,
+    sortBy: 'popularity'
+  });
+  const [showFilters, setShowFilters] = useState(false);
   const { venues } = useVenues();
 
   const filteredVenues = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return venues.filter(
-      (venue) =>
-        venue.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        venue.description?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [searchQuery, venues]);
+    let result = venues as VenueWithCount[];
+
+    // Filtrar por búsqueda
+    if (searchQuery.trim()) {
+      result = result.filter(
+        (venue) =>
+          venue.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Filtrar por precio
+    if (filters.priceRange.length > 0) {
+      result = result.filter(v => {
+        if (!v.avg_price_text) return false;
+        return filters.priceRange.some(price => v.avg_price_text?.includes(price));
+      });
+    }
+
+    // Filtrar por rating
+    if (filters.minRating > 0) {
+      result = result.filter(v => (v.rating || 0) >= filters.minRating);
+    }
+
+    // Ordenar
+    if (filters.sortBy === 'popularity') {
+      result.sort((a, b) => (b.count_today || 0) - (a.count_today || 0));
+    } else if (filters.sortBy === 'rating') {
+      result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else if (filters.sortBy === 'price') {
+      result.sort((a, b) => {
+        const priceA = (a.avg_price_text?.match(/\$/g) || []).length;
+        const priceB = (b.avg_price_text?.match(/\$/g) || []).length;
+        return priceA - priceB;
+      });
+    }
+
+    return result;
+  }, [searchQuery, venues, filters]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -56,8 +100,8 @@ export default function SearchScreen() {
                   {item.rating && (
                     <Text style={styles.venueRating}>⭐ {item.rating}</Text>
                   )}
-                  {item.category && (
-                    <Text style={styles.venueCategory}>{item.category}</Text>
+                  {item.count_today && (
+                    <Text style={styles.venueCategory}>👥 {item.count_today} hoy</Text>
                   )}
                 </View>
               </View>

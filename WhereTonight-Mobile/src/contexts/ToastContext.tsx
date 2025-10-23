@@ -56,3 +56,5 @@ export function useToast() {
   }
   return context;
 }
+
+export const useToastContext = useToast;
