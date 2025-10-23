@@ -25,9 +25,17 @@ import HistoryScreen from '@/components/HistoryScreen'
 import SplashScreen from '@/components/SplashScreen'
 import FriendsScreen from '@/components/FriendsScreen'
 import FriendProfileScreen from '@/components/FriendProfileScreen'
+import CityOnboarding from '@/components/CityOnboarding'
 import useSwipe from '@/hooks/useSwipe'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { MapPin, Edit, Home as HomeIcon, Search as SearchIcon, User as UserIcon, MessageCircle } from 'lucide-react'
+
+interface SelectedCity {
+  name: string
+  lat: number
+  lng: number
+  country?: string
+}
 
 export default function Home() {
   const { venues } = useVenues() // Usar venues desde el context
@@ -50,6 +58,8 @@ export default function Home() {
   const [filteredVenues, setFilteredVenues] = useState<VenueWithCount[]>([])
   const [navTab, setNavTab] = useState<string>('home')
   const [showSplash, setShowSplash] = useState(true)
+  const [showCityOnboarding, setShowCityOnboarding] = useState(false)
+  const [selectedCity, setSelectedCity] = useState<SelectedCity | null>(null)
   const { t } = useLanguage()
   
   // Referencia al contenedor principal para los gestos
@@ -90,6 +100,19 @@ export default function Home() {
 
   const { loadVenues } = useVenues()
   
+  // Cargar ciudad guardada al inicio (solo durante la sesión)
+  useEffect(() => {
+    const savedCity = sessionStorage.getItem('selectedCity')
+    if (savedCity) {
+      try {
+        const city = JSON.parse(savedCity)
+        setSelectedCity(city)
+      } catch (error) {
+        console.error('Error parsing saved city:', error)
+      }
+    }
+  }, [])
+
   // Efectos
   useEffect(() => {
     // Los venues ya se cargan en el context
@@ -109,6 +132,8 @@ export default function Home() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Ya no es necesario centrar el mapa después porque se inicializa directamente en la ciudad seleccionada
 
   useEffect(() => {
     checkTicketStatus()
@@ -271,10 +296,30 @@ export default function Home() {
     )
   }
 
+  // Handler para cuando termina el splash
+  const handleSplashComplete = () => {
+    setShowSplash(false)
+    // Si no hay ciudad guardada, mostrar onboarding
+    if (!selectedCity) {
+      setShowCityOnboarding(true)
+    }
+  }
+
+  // Handler para cuando se selecciona una ciudad
+  const handleCitySelect = (city: SelectedCity) => {
+    setSelectedCity(city)
+    setShowCityOnboarding(false)
+  }
+
   return (
     <>
       {/* Splash Screen como overlay */}
-      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+      {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+      
+      {/* City Onboarding */}
+      {!showSplash && showCityOnboarding && (
+        <CityOnboarding onCitySelect={handleCitySelect} />
+      )}
       
       <div ref={mainContainerRef} className="h-screen flex flex-col bg-dark-primary">
       {/* Main content */}
@@ -302,13 +347,20 @@ export default function Home() {
             </div>
           )}
 
-          {/* Map section - Full Screen */}
-          <MapWrapper
-            ref={mapRef}
-            venues={displayVenues}
-            onVenueClick={handleVenueClick}
-            selectedVenueId={selectedVenueId}
-          />
+          {/* Map section - Full Screen - Solo mostrar si hay ciudad seleccionada */}
+          {selectedCity ? (
+            <MapWrapper
+              ref={mapRef}
+              venues={displayVenues}
+              onVenueClick={handleVenueClick}
+              selectedVenueId={selectedVenueId}
+              initialCenter={{ lat: selectedCity.lat, lng: selectedCity.lng }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-dark-primary">
+              <div className="animate-pulse text-neon-blue text-lg">Cargando mapa...</div>
+            </div>
+          )}
           
           
           {/* Venue Details Sheet */}
@@ -334,9 +386,13 @@ export default function Home() {
         
         {navTab === 'social' && (
           <SocialFeed 
+            userId={user?.id}
             onVenueClick={(venueId) => {
               const venue = venues.find(v => v.id === venueId)
-              if (venue) handleVenueClick(venue)
+              if (venue) {
+                setNavTab('home')
+                handleVenueClick(venue)
+              }
             }}
           />
         )}

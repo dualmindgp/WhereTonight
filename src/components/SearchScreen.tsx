@@ -276,13 +276,13 @@ export default function SearchScreen({ venues, onVenueClick, onNavigateToMap }: 
                         className="w-full h-full object-cover"
                       />
                     )}
-                    {/* Count badge */}
-                    {(venue.count_today || 0) > 0 && (
+                    {/* Count badge - Oculto temporalmente para lanzamiento */}
+                    {/* {(venue.count_today || 0) > 0 && (
                       <div className="absolute top-1 right-1 bg-neon-pink text-white px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1">
                         <Users className="w-3 h-3" />
                         {venue.count_today}
                       </div>
-                    )}
+                    )} */}
                   </div>
 
                   {/* Info */}

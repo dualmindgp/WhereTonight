@@ -15,29 +15,51 @@ interface Activity {
   username: string | null
   avatar_url: string | null
   venue_name: string
+  lat: number
+  lng: number
 }
 
 interface ActivityFeedProps {
   onVenueClick?: (venueId: string) => void
   limit?: number
   userId?: string // Si se proporciona, solo muestra actividades de ese usuario
+  cityFilter?: { name: string; lat: number; lng: number } | null // Filtrar por ciudad
 }
 
-export default function ActivityFeed({ onVenueClick, limit, userId }: ActivityFeedProps) {
+export default function ActivityFeed({ onVenueClick, limit, userId, cityFilter }: ActivityFeedProps) {
   const { t } = useLanguage()
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadActivities()
-  }, [userId])
+  }, [userId, cityFilter])
+
+  // Función para calcular distancia entre dos puntos
+  const getDistanceFromLatLonInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371 // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
 
   const loadActivities = async () => {
     const data = await withErrorHandling(
       async () => {
+        // Calcular timestamp de hace 24 horas
+        const twentyFourHoursAgo = new Date()
+        twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
+        const timestamp24h = twentyFourHoursAgo.toISOString()
+
         let query = supabase
           .from('activity_feed_view')
           .select('*')
+          .gte('created_at', timestamp24h) // Solo actividades de las últimas 24h
           .order('created_at', { ascending: false })
 
         if (userId) {
@@ -54,16 +76,31 @@ export default function ActivityFeed({ onVenueClick, limit, userId }: ActivityFe
 
         if (error) throw error
 
+        // Si hay filtro de ciudad, filtrar por proximidad (50km)
+        if (cityFilter && data) {
+          const RADIUS_KM = 50
+          return data.filter((activity: Activity) => {
+            if (!activity.lat || !activity.lng) return false
+            const distance = getDistanceFromLatLonInKm(
+              cityFilter.lat,
+              cityFilter.lng,
+              activity.lat,
+              activity.lng
+            )
+            return distance <= RADIUS_KM
+          })
+        }
+
         return data || []
       },
       'Error al cargar actividad',
-      { userId, limit }
+      { userId, limit, cityFilter: cityFilter?.name }
     )
 
     setLoading(false)
     if (data) {
       setActivities(data)
-      logger.trackEvent('activities_loaded', { userId, count: data.length })
+      logger.trackEvent('activities_loaded', { userId, count: data.length, city: cityFilter?.name })
     } else {
       setActivities([])
     }

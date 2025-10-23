@@ -9,19 +9,21 @@ export interface MapProps {
   venues: VenueWithCount[]
   onVenueClick: (venue: VenueWithCount) => void
   selectedVenueId?: string | null
+  initialCenter?: { lat: number; lng: number } | null
 }
 
-const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }, ref) => {
+const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId, initialCenter }, ref) => {
   const mapRef = useRef<any>(null)
   const markersRef = useRef<maplibregl.Marker[]>([])
   const userLocationMarkerRef = useRef<maplibregl.Marker | null>(null)
   const [viewState, setViewState] = useState({
-    longitude: 21.0122,
-    latitude: 52.2297,
+    longitude: initialCenter?.lng || 21.0122,  // Usar ciudad seleccionada o Varsovia por defecto
+    latitude: initialCenter?.lat || 52.2297,
     zoom: 13
   })
   const [isLocating, setIsLocating] = useState(false)
   const [currentZoom, setCurrentZoom] = useState(13)
+  const [mapReady, setMapReady] = useState(false)
   
   // Función para calcular el tamaño del marcador basado en el zoom
   const getMarkerScale = (zoom: number) => {
@@ -42,6 +44,26 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
       }
     }
   }))
+
+  // Handler cuando el mapa se carga
+  const handleMapLoad = () => {
+    console.log('🗺️ Map loaded callback fired!')
+    setMapReady(true)
+  }
+
+  // Actualizar mapa cuando cambia la ciudad seleccionada
+  useEffect(() => {
+    if (initialCenter && mapRef.current && mapReady) {
+      const map = mapRef.current.getMap()
+      if (map && map.loaded()) {
+        map.flyTo({
+          center: [initialCenter.lng, initialCenter.lat],
+          zoom: 13,
+          duration: 2000
+        })
+      }
+    }
+  }, [initialCenter, mapReady])
 
   // Función para ir a la ubicación del usuario
   const goToUserLocation = () => {
@@ -150,20 +172,44 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
   
   // Añadir marcadores cuando el mapa esté listo
   useEffect(() => {
-    if (!mapRef.current) return
+    console.log(`📍 Markers effect triggered: mapReady=${mapReady}, venues=${venues.length}`)
+    
+    if (!mapReady) {
+      console.log('⏳ Map not ready yet, skipping markers')
+      return
+    }
+    
+    if (!mapRef.current) {
+      console.log('❌ Map ref not ready')
+      return
+    }
     
     const map = mapRef.current.getMap()
-    if (!map) return
+    if (!map) {
+      console.log('❌ Map not available')
+      return
+    }
     
     if (venues.length === 0) {
-      return // No añadir marcadores si no hay venues
+      console.log('📍 No venues to display')
+      // Limpiar marcadores si no hay venues
+      markersRef.current.forEach(marker => marker.remove())
+      markersRef.current = []
+      return
     }
+    
+    console.log(`📍 Preparing to add ${venues.length} markers to map`)
     
     // Esperar a que el mapa se cargue completamente
     const addMarkers = () => {
+      console.log('🎯 Starting to add markers...')
+      console.log(`Map state: loaded=${map.loaded()}, styleLoaded=${map.isStyleLoaded()}`)
+      
       // Limpiar marcadores anteriores
       markersRef.current.forEach(marker => marker.remove())
       markersRef.current = []
+      
+      let addedCount = 0
       
       venues.forEach((venue) => {
         
@@ -215,7 +261,7 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
         
         // Pin con círculo perfecto y triángulo (tamaños fijos)
         innerContainer.innerHTML = `
-          <div style="
+          <div class="marker-circle" style="
             width: 50px;
             height: 50px;
             border-radius: 50%;
@@ -232,8 +278,9 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
             font-weight: bold;
             color: white;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-          ">${count}</div>
-          <div style="
+            transition: border-width 0.2s ease;
+          "></div>
+          <div class="marker-triangle" style="
             width: 0;
             height: 0;
             border-left: 10px solid transparent;
@@ -245,6 +292,21 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
         `
         
         el.appendChild(innerContainer)
+        
+        // Añadir evento de hover
+        el.addEventListener('mouseenter', () => {
+          const circle = innerContainer.querySelector('.marker-circle') as HTMLElement
+          if (circle) {
+            circle.style.borderWidth = '6px'
+          }
+        })
+        
+        el.addEventListener('mouseleave', () => {
+          const circle = innerContainer.querySelector('.marker-circle') as HTMLElement
+          if (circle) {
+            circle.style.borderWidth = '3px'
+          }
+        })
         
         // Añadir evento de click
         el.addEventListener('click', () => {
@@ -260,25 +322,36 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
           .addTo(map)
         
         markersRef.current.push(marker)
+        addedCount++
       })
+      
+      console.log(`✅ Successfully added ${addedCount} markers to the map`)
     }
     
-    // Siempre esperar a que el mapa esté cargado antes de añadir marcadores
-    if (map.loaded()) {
-      addMarkers()
-    } else {
-      const onLoad = () => {
+    // Usar estrategia más confiable: esperar evento 'idle' que garantiza que el mapa está completamente renderizado
+    const attemptAddMarkers = () => {
+      if (map.loaded() && map.isStyleLoaded()) {
+        console.log('Map is fully loaded and styled, adding markers')
         addMarkers()
-        map.off('load', onLoad)
+      } else {
+        console.log('Map not fully ready, waiting for idle event')
+        const onIdle = () => {
+          console.log('Map idle event fired, adding markers')
+          addMarkers()
+          map.off('idle', onIdle)
+        }
+        map.once('idle', onIdle)
       }
-      map.on('load', onLoad)
     }
+    
+    attemptAddMarkers()
     
     return () => {
+      console.log('🧹 Cleaning up markers')
       markersRef.current.forEach(marker => marker.remove())
       markersRef.current = []
     }
-  }, [venues, selectedVenueId, onVenueClick])
+  }, [venues, selectedVenueId, mapReady])
   
   // Actualizar escala de marcadores cuando cambie el zoom
   useEffect(() => {
@@ -307,6 +380,7 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId }
           setViewState(evt.viewState)
           setCurrentZoom(evt.viewState.zoom)
         }}
+        onLoad={handleMapLoad}
         style={{ width: '100%', height: '100%' }}
         mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
         attributionControl={false}

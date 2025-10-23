@@ -26,10 +26,23 @@ export default function TopNavBar({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [showResults, setShowResults] = useState(false)
-  const [selectedCity, setSelectedCity] = useState('Warsaw')
+  const [selectedCity, setSelectedCity] = useState<string>('')
   const [isSearching, setIsSearching] = useState(false)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Cargar ciudad desde sessionStorage al montar
+  useEffect(() => {
+    const savedCity = sessionStorage.getItem('selectedCity')
+    if (savedCity) {
+      try {
+        const city = JSON.parse(savedCity)
+        setSelectedCity(city.name)
+      } catch (error) {
+        console.error('Error parsing saved city:', error)
+      }
+    }
+  }, [])
 
   // Buscar ciudades usando Nominatim (OpenStreetMap)
   const searchCities = async (query: string) => {
@@ -76,17 +89,22 @@ export default function TopNavBar({
 
   const handleSelectCity = (result: SearchResult) => {
     const cityName = result.name || result.display_name.split(',')[0]
+    const cityData = {
+      name: cityName,
+      lat: parseFloat(result.lat),
+      lng: parseFloat(result.lon)
+    }
+    
     setSelectedCity(cityName)
     setSearchQuery('')
     setShowResults(false)
     setIsSearching(false)
     
+    // Actualizar sessionStorage
+    sessionStorage.setItem('selectedCity', JSON.stringify(cityData))
+    
     if (onCityChange) {
-      onCityChange({
-        name: cityName,
-        lat: parseFloat(result.lat),
-        lng: parseFloat(result.lon)
-      })
+      onCityChange(cityData)
     }
   }
 
@@ -110,7 +128,9 @@ export default function TopNavBar({
             className="flex items-center space-x-2 bg-dark-secondary/80 backdrop-blur-sm rounded-full pl-3 pr-4 py-2 text-text-light border border-neon-purple/30 shadow-lg shadow-neon-purple/10 hover:bg-dark-secondary transition-colors w-full"
           >
             <MapPin className="w-5 h-5 text-neon-purple flex-shrink-0" />
-            <span className="text-neon-purple font-medium truncate">{selectedCity}</span>
+            <span className="text-neon-purple font-medium truncate">
+              {selectedCity || 'Selecciona ciudad'}
+            </span>
           </button>
         ) : (
           // Input de búsqueda

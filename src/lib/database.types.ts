@@ -138,9 +138,71 @@ export interface Database {
           }
         ]
       }
+      social_posts: {
+        Row: {
+          id: string
+          user_id: string
+          content: string
+          city: string
+          city_lat: number
+          city_lng: number
+          audience: 'public' | 'friends_only'
+          image_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          content: string
+          city: string
+          city_lat: number
+          city_lng: number
+          audience?: 'public' | 'friends_only'
+          image_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          content?: string
+          city?: string
+          city_lat?: number
+          city_lng?: number
+          audience?: 'public' | 'friends_only'
+          image_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      social_posts_with_user: {
+        Row: {
+          id: string
+          user_id: string
+          content: string
+          city: string
+          city_lat: number
+          city_lng: number
+          audience: 'public' | 'friends_only'
+          image_url: string | null
+          created_at: string
+          updated_at: string
+          username: string | null
+          avatar_url: string | null
+        }
+      }
     }
     Functions: {
       tickets_count_today_euwarsaw: {
@@ -169,3 +231,5 @@ export type Venue = Database['public']['Tables']['venues']['Row']
 export type VenueWithCount = Venue & { count_today: number }
 export type Comment = Database['public']['Tables']['comments']['Row']
 export type Ticket = Database['public']['Tables']['tickets']['Row']
+export type SocialPost = Database['public']['Tables']['social_posts']['Row']
+export type SocialPostWithUser = Database['public']['Views']['social_posts_with_user']['Row']
