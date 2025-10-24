@@ -2,6 +2,9 @@ import React, { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { useToastContext } from '../contexts/ToastContext'
+import { useGoogleAuth } from '../hooks/useGoogleAuth'
+import { Chrome } from 'lucide-react-native'
+import { colors, spacing, borderRadius, fontSize } from '../styles/theme'
 
 interface AuthScreenProps {
   onAuthSuccess?: () => void
@@ -10,56 +13,56 @@ interface AuthScreenProps {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0e27',
+    backgroundColor: colors.dark.primary,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 48,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xxl,
   },
   header: {
     marginBottom: 32,
     alignItems: 'center',
   },
   title: {
-    fontSize: 32,
+    fontSize: fontSize.xxxl,
     fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 8,
+    color: colors.text.light,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#b0b0b0',
+    fontSize: fontSize.sm,
+    color: colors.text.secondary,
   },
   inputGroup: {
     width: '100%',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   label: {
-    fontSize: 12,
+    fontSize: fontSize.xs,
     fontWeight: '600',
-    color: '#e0e0e0',
-    marginBottom: 8,
+    color: colors.text.light,
+    marginBottom: spacing.sm,
   },
   input: {
     width: '100%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#1a1f3a',
-    color: '#ffffff',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.dark.card,
+    color: colors.text.light,
     borderWidth: 1,
-    borderColor: '#00d4ff',
-    borderRadius: 8,
-    fontSize: 14,
+    borderColor: colors.neon.blue,
+    borderRadius: borderRadius.sm,
+    fontSize: fontSize.sm,
   },
   button: {
     width: '100%',
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    backgroundColor: '#00d4ff',
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.md,
+    backgroundColor: colors.neon.blue,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -67,10 +70,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#00d4ff80',
   },
   buttonText: {
-    color: '#ffffff',
+    color: colors.text.light,
     textAlign: 'center',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: fontSize.md,
   },
   toggleContainer: {
     flexDirection: 'row',
@@ -78,23 +81,60 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleText: {
-    fontSize: 12,
-    color: '#b0b0b0',
+    fontSize: fontSize.xs,
+    color: colors.text.secondary,
   },
   toggleLink: {
-    color: '#00d4ff',
+    color: colors.neon.blue,
     fontWeight: 'bold',
+    fontSize: fontSize.xs,
+    marginLeft: spacing.xs,
+  },
+  googleButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  googleButtonText: {
+    color: '#666',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 16,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#00d4ff30',
+  },
+  dividerText: {
+    paddingHorizontal: 12,
+    color: '#b0b0b0',
     fontSize: 12,
-    marginLeft: 4,
   },
 })
 
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const toast = useToastContext()
+  const { signInWithGoogle, loading: googleLoading } = useGoogleAuth()
   const [isSignUp, setIsSignUp] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const handleGoogleSignIn = async () => {
+    await signInWithGoogle()
+  }
 
   const handleEmailAuth = async () => {
     if (!email.trim() || !password.trim()) {
@@ -102,29 +142,42 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       return
     }
 
+    console.log('🔐 [AuthScreen] Starting auth with:', email)
     setLoading(true)
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        console.log('📝 [AuthScreen] Signing up...')
+        const { error, data } = await supabase.auth.signUp({
           email,
           password,
         })
         
+        console.log('📝 [AuthScreen] SignUp result:', data, error)
         if (error) throw error
         toast.success('¡Cuenta creada! Revisa tu email para confirmar')
         setEmail('')
         setPassword('')
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log('🔑 [AuthScreen] Signing in...')
+        const { error, data } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
         
+        console.log('🔑 [AuthScreen] SignIn result:', data.session ? 'SESSION OK' : 'NO SESSION', error)
         if (error) throw error
+        
+        console.log('✅ [AuthScreen] Login successful, session:', data.session?.user?.id)
         toast.success('¡Sesión iniciada correctamente!')
-        onAuthSuccess?.()
+        
+        // Pequeño delay para asegurar que la sesión se persista
+        setTimeout(() => {
+          console.log('✅ [AuthScreen] Calling onAuthSuccess callback')
+          onAuthSuccess?.()
+        }, 100)
       }
     } catch (err: any) {
+      console.error('❌ [AuthScreen] Auth error:', err.message)
       toast.error(err.message || 'Error al autenticar')
     } finally {
       setLoading(false)
@@ -140,6 +193,29 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           <Text style={styles.subtitle}>
             {isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}
           </Text>
+        </View>
+
+        {/* Google Sign In Button */}
+        <TouchableOpacity
+          onPress={handleGoogleSignIn}
+          disabled={loading || googleLoading}
+          style={[styles.googleButton, (loading || googleLoading) && styles.buttonDisabled]}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color="#666" />
+          ) : (
+            <>
+              <Chrome color="#666" size={20} />
+              <Text style={styles.googleButtonText}>Continuar con Google</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>o</Text>
+          <View style={styles.dividerLine} />
         </View>
 
         {/* Email Input */}

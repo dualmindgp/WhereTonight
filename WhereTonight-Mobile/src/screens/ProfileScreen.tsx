@@ -5,6 +5,7 @@ import { User, LogOut, Edit, Heart, Clock, Users, Settings } from 'lucide-react-
 import { supabase } from '../lib/supabase'
 import { Profile } from '../types/database.types'
 import { useToastContext } from '../contexts/ToastContext'
+import EditProfileModal from '../components/EditProfileModal'
 
 interface ProfileScreenProps {
   userId: string
@@ -26,9 +27,7 @@ export default function ProfileScreen({
   const toast = useToastContext()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [username, setUsername] = useState('')
-  const [bio, setBio] = useState('')
+  const [showEditModal, setShowEditModal] = useState(false)
 
   useEffect(() => {
     loadProfile()

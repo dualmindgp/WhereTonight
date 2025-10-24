@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Home, Search, MessageCircle, User } from 'lucide-react-native'
 import { supabase } from '../lib/supabase'
+import { useCityContext } from '../contexts/CityContext'
 
 // Screens
 import MapScreen from '../screens/MapScreen'
@@ -14,10 +15,12 @@ import AuthScreen from '../screens/AuthScreen'
 import FavoritesScreen from '../screens/FavoritesScreen'
 import HistoryScreen from '../screens/HistoryScreen'
 import FriendsScreen from '../screens/FriendsScreen'
+import CityOnboardingScreen from '../components/CityOnboardingScreen'
 
 export type RootStackParamList = {
-  Auth: undefined
+  CityOnboarding: undefined
   MainTabs: undefined
+  Auth: undefined
 }
 
 export type MainTabsParamList = {
@@ -30,8 +33,7 @@ export type MainTabsParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>()
 const Tab = createBottomTabNavigator<MainTabsParamList>()
 
-function MainTabs({ userId }: { userId: string }) {
-  const [selectedCity, setSelectedCity] = useState<{ name: string; lat: number; lng: number } | undefined>(undefined)
+function MainTabs({ userId }: { userId?: string }) {
   const [showFavorites, setShowFavorites] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showFriends, setShowFriends] = useState(false)
@@ -70,7 +72,7 @@ function MainTabs({ userId }: { userId: string }) {
       />
       <Tab.Screen
         name="Social"
-        component={() => <SocialFeedScreen userId={userId} selectedCity={selectedCity} />}
+        component={() => <SocialFeedScreen userId={userId} />}
         options={{
           tabBarLabel: 'Social',
           tabBarIcon: ({ color, size }) => <MessageCircle color={color} size={size} />
@@ -79,17 +81,21 @@ function MainTabs({ userId }: { userId: string }) {
       <Tab.Screen
         name="Profile"
         component={() => (
-          <ProfileScreen
-            userId={userId}
-            onLogout={() => {}}
-            onShowFavorites={() => setShowFavorites(true)}
-            onShowHistory={() => setShowHistory(true)}
-            onShowFriends={() => setShowFriends(true)}
-            onShowSettings={() => setShowSettings(true)}
-          />
+          userId ? (
+            <ProfileScreen
+              userId={userId}
+              onLogout={() => {}}
+              onShowFavorites={() => setShowFavorites(true)}
+              onShowHistory={() => setShowHistory(true)}
+              onShowFriends={() => setShowFriends(true)}
+              onShowSettings={() => setShowSettings(true)}
+            />
+          ) : (
+            <AuthScreen onAuthSuccess={() => {}} />
+          )
         )}
         options={{
-          tabBarLabel: 'Perfil',
+          tabBarLabel: userId ? 'Perfil' : 'Login',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />
         }}
       />
@@ -100,33 +106,64 @@ function MainTabs({ userId }: { userId: string }) {
 export default function AppNavigator() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const { selectedCity, setSelectedCity, isLoading: cityLoading } = useCityContext()
 
   useEffect(() => {
+    console.log('🔍 [AppNavigator] Checking initial session...')
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('📱 [AppNavigator] Initial session:', session ? 'LOGGED IN' : 'NOT LOGGED IN')
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('🔄 [AppNavigator] Auth state changed:', event, session ? 'USER PRESENT' : 'NO USER')
       setUser(session?.user ?? null)
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  if (loading) {
+  if (loading || cityLoading) {
     return null
+  }
+
+  const handleAuthSuccess = () => {
+    console.log('✅ [AppNavigator] Auth success - refreshing session...')
+    // Forzar recarga de la sesión
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('📱 [AppNavigator] Refreshed session:', session ? 'LOGGED IN' : 'NOT LOGGED IN')
+      setUser(session?.user ?? null)
+    })
   }
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user ? (
-          <Stack.Screen name="MainTabs" component={() => <MainTabs userId={user.id} />} />
+        {/* Siempre mostrar CityOnboarding primero si no hay ciudad */}
+        {!selectedCity ? (
+          <Stack.Screen name="CityOnboarding">
+            {() => <CityOnboardingScreen onCitySelect={setSelectedCity} />}
+          </Stack.Screen>
         ) : (
-          <Stack.Screen name="Auth" component={AuthScreen} />
+          <>
+            {/* MainTabs siempre accesible (con o sin usuario) */}
+            <Stack.Screen name="MainTabs">
+              {() => <MainTabs userId={user?.id} />}
+            </Stack.Screen>
+            {/* AuthScreen como modal opcional */}
+            <Stack.Screen 
+              name="Auth"
+              options={{
+                presentation: 'modal',
+                gestureEnabled: true,
+              }}
+            >
+              {() => <AuthScreen onAuthSuccess={handleAuthSuccess} />}
+            </Stack.Screen>
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

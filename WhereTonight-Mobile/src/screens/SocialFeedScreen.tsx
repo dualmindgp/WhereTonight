@@ -1,44 +1,108 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, TextInput, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Heart, MessageCircle, Trash2, Globe, Users as UsersIcon, Clock } from 'lucide-react-native'
+import { Heart, MessageCircle, Trash2, Globe, Users as UsersIcon, Clock, MapPin } from 'lucide-react-native'
 import { supabase } from '../lib/supabase'
 import { SocialPostWithUser } from '../types/database.types'
 import { useToastContext } from '../contexts/ToastContext'
+import { useCityContext } from '../contexts/CityContext'
+import CitySelector from '../components/CitySelector'
 
 interface SocialFeedScreenProps {
   userId?: string
-  selectedCity?: { name: string; lat: number; lng: number }
 }
 
-export default function SocialFeedScreen({ userId, selectedCity }: SocialFeedScreenProps) {
+export default function SocialFeedScreen({ userId }: SocialFeedScreenProps) {
   const toast = useToastContext()
+  const { selectedCity, setSelectedCity } = useCityContext()
   const [posts, setPosts] = useState<SocialPostWithUser[]>([])
   const [loading, setLoading] = useState(false)
   const [newPostContent, setNewPostContent] = useState('')
   const [posting, setPosting] = useState(false)
   const [audience, setAudience] = useState<'public' | 'friends_only'>('public')
+  const [showCitySelector, setShowCitySelector] = useState(false)
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set())
 
+  // Cargar IDs de amigos
+  useEffect(() => {
+    if (userId) {
+      loadFriendIds()
+    }
+  }, [userId])
+
+  // Cargar posts cuando cambia la ciudad
   useEffect(() => {
     if (selectedCity) {
       loadPosts()
+    } else {
+      setPosts([])
     }
   }, [selectedCity, userId])
+
+  const loadFriendIds = async () => {
+    if (!userId) return
+
+    try {
+      const { data, error } = await supabase
+        .from('friendships')
+        .select('user_id, friend_id')
+        .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+        .eq('status', 'accepted')
+
+      if (error) throw error
+
+      const ids = new Set<string>()
+      data?.forEach((f) => {
+        if (f.user_id === userId) {
+          ids.add(f.friend_id)
+        } else {
+          ids.add(f.user_id)
+        }
+      })
+      setFriendIds(ids)
+    } catch (error) {
+      console.error('Error loading friends:', error)
+    }
+  }
 
   const loadPosts = async () => {
     if (!selectedCity) return
 
     setLoading(true)
     try {
+      // Calcular timestamp de hace 24 horas
+      const twentyFourHoursAgo = new Date()
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
+      const timestamp24h = twentyFourHoursAgo.toISOString()
+
       const { data, error } = await supabase
         .from('social_posts_with_user')
         .select('*')
         .eq('city', selectedCity.name)
+        .gte('created_at', timestamp24h) // Solo posts de últimas 24h
         .order('created_at', { ascending: false })
         .limit(50)
 
       if (error) throw error
-      setPosts(data || [])
+
+      // Filtrar posts según privacidad
+      let filteredData = data || []
+      if (userId) {
+        filteredData = data?.filter((post) => {
+          // Posts públicos: todos pueden ver
+          if (post.audience === 'public') return true
+          // Posts propios: siempre visibles
+          if (post.user_id === userId) return true
+          // Posts de amigos: solo si es amigo
+          if (post.audience === 'friends_only' && friendIds.has(post.user_id)) return true
+          return false
+        }) || []
+      } else {
+        // Sin userId, solo mostrar públicos
+        filteredData = data?.filter((post) => post.audience === 'public') || []
+      }
+
+      setPosts(filteredData)
     } catch (error) {
       console.error('Error loading posts:', error)
       toast.error('Error al cargar posts')
@@ -119,10 +183,24 @@ export default function SocialFeedScreen({ userId, selectedCity }: SocialFeedScr
         <Text className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-blue">
           Social
         </Text>
-        <Text className="text-text-secondary text-sm mt-1">
-          {selectedCity ? `En ${selectedCity.name}` : 'Selecciona una ciudad'}
-        </Text>
+        <TouchableOpacity 
+          onPress={() => setShowCitySelector(true)}
+          className="flex-row items-center gap-2 mt-2"
+        >
+          <MapPin color="#00D9FF" size={16} />
+          <Text className="text-text-secondary text-sm">
+            {selectedCity ? selectedCity.name : 'Selecciona una ciudad'}
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      {/* City Selector Modal */}
+      <CitySelector
+        visible={showCitySelector}
+        onClose={() => setShowCitySelector(false)}
+        onSelect={(city) => setSelectedCity(city)}
+        selectedCity={selectedCity}
+      />
 
       {selectedCity && userId && (
         <View className="px-4 pt-4 pb-4">

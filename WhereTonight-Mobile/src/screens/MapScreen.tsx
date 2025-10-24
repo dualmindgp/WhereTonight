@@ -49,17 +49,29 @@ export default function MapScreen() {
         showsUserLocation={true}
         showsMyLocationButton={true}
       >
-        {venues.map((venue) => (
-          <Marker
-            key={venue.id}
-            coordinate={{
-              latitude: venue.latitude,
-              longitude: venue.longitude,
-            }}
-            title={venue.name}
-            description={venue.description}
-          />
-        ))}
+        {venues
+          .filter((venue) => {
+            // Filtrar venues con coordenadas válidas
+            const lat = typeof venue.lat === 'number' ? venue.lat : parseFloat(String(venue.lat || 0));
+            const lng = typeof venue.lng === 'number' ? venue.lng : parseFloat(String(venue.lng || 0));
+            return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+          })
+          .map((venue) => {
+            const latitude = typeof venue.lat === 'number' ? venue.lat : parseFloat(String(venue.lat || 0));
+            const longitude = typeof venue.lng === 'number' ? venue.lng : parseFloat(String(venue.lng || 0));
+            
+            return (
+              <Marker
+                key={venue.id}
+                coordinate={{
+                  latitude,
+                  longitude,
+                }}
+                title={venue.name}
+                description={venue.address || ''}
+              />
+            );
+          })}
       </MapView>
 
       {/* Botón para mostrar lista de venues */}
@@ -79,7 +91,7 @@ export default function MapScreen() {
             renderItem={({ item }) => (
               <View style={styles.venueItem}>
                 <Text style={styles.venueName}>{item.name}</Text>
-                <Text style={styles.venueDesc}>{item.description}</Text>
+                <Text style={styles.venueDesc}>{item.address || 'Sin dirección'}</Text>
                 {item.rating && (
                   <Text style={styles.venueRating}>⭐ {item.rating}</Text>
                 )}
