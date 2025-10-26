@@ -46,11 +46,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   };
 
-  // Helper methods
-  const success = (message: string, duration?: number) => showToast(message, 'success', duration);
-  const error = (message: string, duration?: number) => showToast(message, 'error', duration);
-  const warning = (message: string, duration?: number) => showToast(message, 'warning', duration);
-  const info = (message: string, duration?: number) => showToast(message, 'info', duration);
+  const success = (message: string, duration?: number) => {
+    showToast(message, 'success', duration);
+  };
+
+  const error = (message: string, duration?: number) => {
+    showToast(message, 'error', duration);
+  };
+
+  const warning = (message: string, duration?: number) => {
+    showToast(message, 'warning', duration);
+  };
+
+  const info = (message: string, duration?: number) => {
+    showToast(message, 'info', duration);
+  };
 
   return (
     <ToastContext.Provider value={{ toasts, showToast, removeToast, success, error, warning, info }}>
