@@ -10,10 +10,8 @@ import { useCityContext } from '../contexts/CityContext'
 import MapScreen from '../screens/MapScreen'
 import SearchScreen from '../screens/SearchScreen'
 import SocialFeedScreen from '../screens/SocialFeedScreen'
-import ProfileScreen from '../screens/ProfileScreen'
+import ProfileScreenNew from '../screens/ProfileScreenNew'
 import AuthScreen from '../screens/AuthScreen'
-import FavoritesScreen from '../screens/FavoritesScreen'
-import HistoryScreen from '../screens/HistoryScreen'
 import FriendsScreen from '../screens/FriendsScreen'
 import CityOnboardingScreen from '../components/CityOnboardingScreen'
 
@@ -82,13 +80,9 @@ function MainTabs({ userId }: { userId?: string }) {
         name="Profile"
         component={() => (
           userId ? (
-            <ProfileScreen
+            <ProfileScreenNew
               userId={userId}
               onLogout={() => {}}
-              onShowFavorites={() => setShowFavorites(true)}
-              onShowHistory={() => setShowHistory(true)}
-              onShowFriends={() => setShowFriends(true)}
-              onShowSettings={() => setShowSettings(true)}
             />
           ) : (
             <AuthScreen onAuthSuccess={() => {}} />
