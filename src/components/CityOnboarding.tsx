@@ -51,7 +51,7 @@ export default function CityOnboarding({ onCitySelect }: CityOnboardingProps) {
     }
   }, [showSearch])
 
-  // Búsqueda de ciudades
+  // Búsqueda de ciudades OPTIMIZADA
   useEffect(() => {
     if (searchQuery.length < 2) {
       setSearchResults([])
@@ -61,42 +61,67 @@ export default function CityOnboarding({ onCitySelect }: CityOnboardingProps) {
     const delayDebounce = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const response = await fetch(
+        // Priorizar búsqueda en Europa (España primero)
+        const queries = [
+          // 1. Buscar en España primero
           `https://nominatim.openstreetmap.org/search?` +
-          `q=${encodeURIComponent(searchQuery)}&` +
-          `format=json&` +
-          `addressdetails=1&` +
-          `limit=8`,
-          {
-            headers: {
-              'User-Agent': 'WhereTonight/1.0'
-            }
-          }
+          `q=${encodeURIComponent(searchQuery)},España&` +
+          `format=json&addressdetails=1&limit=4&featuretype=city`,
+          // 2. Buscar en Europa
+          `https://nominatim.openstreetmap.org/search?` +
+          `q=${encodeURIComponent(searchQuery)},Europe&` +
+          `format=json&addressdetails=1&limit=4&featuretype=city`
+        ]
+
+        const results = await Promise.all(
+          queries.map(url => 
+            fetch(url, {
+              headers: { 'User-Agent': 'WhereTonight/1.0' }
+            }).then(r => r.json()).catch(() => [])
+          )
         )
         
-        if (!response.ok) throw new Error('Search failed')
+        const allResults = [...results[0], ...results[1]]
         
-        const data = await response.json()
-        
-        const cities: City[] = data
+        const cities: City[] = allResults
           .filter((item: any) => {
-            if (item.class === 'place') return true
-            if (item.class === 'boundary' && item.type === 'administrative') return true
-            return false
+            // Filtrar solo ciudades reales
+            const place = item.class === 'place'
+            const boundary = item.class === 'boundary' && item.type === 'administrative'
+            const isCity = place || boundary
+            
+            // Excluir lugares muy pequeños
+            const importance = parseFloat(item.importance) || 0
+            const isRelevant = importance > 0.3
+            
+            return isCity && isRelevant
           })
           .map((item: any) => {
             const cityName = item.display_name.split(',')[0].trim()
             const country = item.address?.country || ''
+            const importance = parseFloat(item.importance) || 0
+            
             return {
               name: cityName,
               lat: parseFloat(item.lat),
               lng: parseFloat(item.lon),
-              country
+              country,
+              importance
             }
           })
-          .filter((city: City, index: number, self: City[]) => 
-            index === self.findIndex((c: City) => c.name === city.name)
+          // Eliminar duplicados
+          .filter((city: any, index: number, self: any[]) => 
+            index === self.findIndex((c: any) => 
+              c.name.toLowerCase() === city.name.toLowerCase() && 
+              c.country === city.country
+            )
           )
+          // Ordenar por relevancia (importancia)
+          .sort((a: any, b: any) => (b.importance || 0) - (a.importance || 0))
+          // Limitar a 8 resultados
+          .slice(0, 8)
+          // Remover campo importance del resultado final
+          .map(({ importance, ...city }: any) => city)
         
         setSearchResults(cities)
       } catch (error) {
@@ -105,7 +130,7 @@ export default function CityOnboarding({ onCitySelect }: CityOnboardingProps) {
       } finally {
         setIsSearching(false)
       }
-    }, 300)
+    }, 500) // Aumentado de 300ms a 500ms para reducir llamadas
 
     return () => clearTimeout(delayDebounce)
   }, [searchQuery])
@@ -122,7 +147,7 @@ export default function CityOnboarding({ onCitySelect }: CityOnboardingProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-dark-primary flex items-center justify-center overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-dark-primary overflow-y-auto">
       {/* Fondo animado con partículas */}
       <div className="absolute inset-0 overflow-hidden">
         {[...Array(20)].map((_, i) => (
@@ -142,7 +167,7 @@ export default function CityOnboarding({ onCitySelect }: CityOnboardingProps) {
       </div>
 
       {/* Contenido principal */}
-      <div className="relative z-10 w-full max-w-4xl px-6">
+      <div className="relative z-10 w-full max-w-4xl mx-auto px-6 py-12 min-h-screen flex flex-col justify-center pb-32">
         {/* Pregunta principal */}
         <div 
           className={`text-center mb-12 transition-all duration-1000 ${
@@ -276,7 +301,7 @@ export default function CityOnboarding({ onCitySelect }: CityOnboardingProps) {
 
             {/* Botón de búsqueda personalizada */}
             <div 
-              className={`text-center transition-all duration-700 delay-300 ${
+              className={`text-center mb-16 transition-all duration-700 delay-300 ${
                 animationStep >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
               } ${animationStep === 4 ? 'opacity-0 translate-y-20' : ''}`}
             >

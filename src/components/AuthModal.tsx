@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, getAuthRedirectUrl } from '@/lib/supabase'
 import { X, Mail, Lock, Chrome } from 'lucide-react'
 
 interface AuthModalProps {
@@ -32,7 +32,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: getAuthRedirectUrl(),
           },
         })
         
@@ -66,7 +66,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: getAuthRedirectUrl(),
         },
       })
       
