@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react'
 import { User } from '@supabase/supabase-js'
-import { Camera, UserPlus, Users, LogOut, Edit2 } from 'lucide-react'
+import { Camera, UserPlus, Users, LogOut, Edit2, QrCode, Star, TrendingUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/contexts/LanguageContext'
 import LanguageSelector from './LanguageSelector'
@@ -11,6 +11,9 @@ import AddFriendModal from './AddFriendModal'
 import { VenueWithCount } from '@/lib/database.types'
 import { logger, withErrorHandling } from '@/lib/logger'
 import { useToastContext } from '@/contexts/ToastContext'
+import QRScanner from './QRScanner'
+import PointsBadge from './PointsBadge'
+import { getUserPoints, getLevelFromPoints } from '@/lib/points-system'
 
 interface ProfileScreenProps {
   user: User
@@ -35,6 +38,30 @@ export default function ProfileScreen({
   const [editingBio, setEditingBio] = useState(profile?.bio || '')
   const [editingUsername, setEditingUsername] = useState(profile?.username || '')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showQRScanner, setShowQRScanner] = useState(false)
+  const [points, setPoints] = useState(0)
+  const [level, setLevel] = useState(1)
+
+  // Cargar puntos del usuario
+  React.useEffect(() => {
+    const loadPoints = async () => {
+      try {
+        const totalPoints = await getUserPoints(user.id)
+        setPoints(totalPoints)
+        setLevel(getLevelFromPoints(totalPoints))
+      } catch (error) {
+        console.error('Error loading points:', error)
+      }
+    }
+    loadPoints()
+  }, [user.id])
+
+  const handleQRScan = (code: string) => {
+    console.log('QR Code scanned:', code)
+    toast.success(`Código escaneado: ${code}`)
+    // Aquí puedes procesar el código QR
+    // Por ejemplo, añadir amigo si es un código de amistad
+  }
 
   const uploadAvatar = async (file: File) => {
     try {
@@ -270,6 +297,38 @@ export default function ProfileScreen({
             )}
           </div>
 
+          {/* Points and QR Section */}
+          <div className="border-t border-neon-blue/20 pt-6 mt-6">
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {/* Puntos Card */}
+              <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 rounded-xl p-4 border border-yellow-500/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Star className="w-5 h-5 text-yellow-400 fill-current" />
+                  <span className="text-yellow-400 font-bold text-lg">{points}</span>
+                </div>
+                <p className="text-text-secondary text-xs">Puntos</p>
+              </div>
+
+              {/* Nivel Card */}
+              <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-500/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-5 h-5 text-orange-400" />
+                  <span className="text-orange-400 font-bold text-lg">{level}</span>
+                </div>
+                <p className="text-text-secondary text-xs">Nivel</p>
+              </div>
+            </div>
+
+            {/* QR Scanner Button */}
+            <button
+              onClick={() => setShowQRScanner(true)}
+              className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 transition-all border border-purple-500/30"
+            >
+              <QrCode className="w-5 h-5 text-purple-400" />
+              <span className="text-purple-400 font-semibold">Escanear Código QR</span>
+            </button>
+          </div>
+
           {/* Friends Section */}
           <div className="border-t border-neon-blue/20 pt-6 mt-6">
             <div className="flex items-center justify-between mb-4">
@@ -344,6 +403,13 @@ export default function ProfileScreen({
         onClose={() => setShowAddFriendModal(false)}
         userId={user.id}
         username={username}
+      />
+
+      {/* QR Scanner */}
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={handleQRScan}
       />
     </div>
   )

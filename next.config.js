@@ -9,7 +9,15 @@ const nextConfig = {
       'maplibre-gl': 'maplibre-gl/dist/maplibre-gl.js'
     }
     return config
-  }
+  },
+  // Excluir carpetas antiguas del build
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    dirs: ['src', 'app'],
+    ignoreDuringBuilds: false,
+  },
 };
 
 module.exports = nextConfig;

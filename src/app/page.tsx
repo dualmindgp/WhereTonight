@@ -29,6 +29,7 @@ import CityOnboarding from '@/components/CityOnboarding'
 import useSwipe from '@/hooks/useSwipe'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { MapPin, Edit, Home as HomeIcon, Search as SearchIcon, User as UserIcon, MessageCircle } from 'lucide-react'
+import { addPoints, PointAction } from '@/lib/points-system'
 
 interface SelectedCity {
   name: string
@@ -186,6 +187,14 @@ export default function Home() {
 
       // Actualizar estado y recargar datos
       setHasUsedTicketToday(true)
+      
+      // Añadir puntos al usuario
+      try {
+        const result = await addPoints(user.id, PointAction.TICKET_USED)
+        console.log(`¡Ganaste ${result.pointsAdded} puntos! Total: ${result.newTotal}`)
+      } catch (error) {
+        console.error('Error adding points:', error)
+      }
       
       // Crear actividad en el feed
       try {

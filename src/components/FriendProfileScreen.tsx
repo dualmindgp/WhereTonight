@@ -419,7 +419,9 @@ export default function FriendProfileScreen({
           ) : friends.length === 0 ? (
             <div className="text-center py-8">
               <Users className="w-12 h-12 text-text-secondary mx-auto mb-2 opacity-50" />
-              <p className="text-text-secondary text-sm">Sin amigos aún</p>
+              <p className="text-text-secondary text-sm">
+                {friendsCount === 0 ? 'Sin amigos aún' : 'No tienen amigos en común'}
+              </p>
             </div>
           ) : (
             <>

@@ -36,7 +36,7 @@ export default function TwoStepSearchBar({
   const [selectedCity, setSelectedCity] = useState<string | null>(null)
   const [cityResults, setCityResults] = useState<SearchResult[]>([])
   const [showCityResults, setShowCityResults] = useState(false)
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Buscar ciudades usando Nominatim

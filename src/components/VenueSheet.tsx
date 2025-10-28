@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Star, DollarSign, MapPin, Globe, Image, ExternalLink, Bookmark, Navigation } from 'lucide-react'
+import { X, Star, DollarSign, MapPin, Globe, Image, ExternalLink, Bookmark, Navigation, Share2 } from 'lucide-react'
 import { VenueWithCount } from '@/lib/database.types'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { supabase } from '@/lib/supabase'
@@ -9,6 +9,8 @@ import PhotoCarousel from './PhotoCarousel'
 import ConfirmTicketModal from './ConfirmTicketModal'
 import { logger, withErrorHandling } from '@/lib/logger'
 import { useToastContext } from '@/contexts/ToastContext'
+import { shareVenue } from '@/lib/share'
+import { addPoints, PointAction } from '@/lib/points-system'
 
 interface VenueSheetProps {
   venue: VenueWithCount
@@ -35,6 +37,7 @@ export default function VenueSheet({
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
 
   // Verificar si el venue está guardado
   useEffect(() => {
@@ -137,6 +140,16 @@ export default function VenueSheet({
       setIsSaved(true)
       toast.success('¡Guardado en favoritos!')
       logger.trackEvent('venue_favorited', { venueId: venue.id, venueName: venue.name })
+      
+      // Añadir puntos
+      if (userId) {
+        try {
+          await addPoints(userId, PointAction.VENUE_SAVED)
+          toast.success('¡+5 puntos! ⭐')
+        } catch (error) {
+          console.error('Error adding points:', error)
+        }
+      }
     } else if (success === 'removed') {
       setIsSaved(false)
       toast.info('Quitado de favoritos')
@@ -151,6 +164,35 @@ export default function VenueSheet({
     const destination = `${venue.lat},${venue.lng}`
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination}`
     window.open(mapsUrl, '_blank')
+  }
+
+  const handleShareVenue = async () => {
+    setIsSharing(true)
+    try {
+      const shared = await shareVenue({
+        venueName: venue.name,
+        venueType: venue.type || undefined,
+        address: venue.address || undefined
+      })
+      
+      if (shared) {
+        toast.success(t('venue.shared'))
+        
+        // Añadir puntos
+        if (userId) {
+          try {
+            await addPoints(userId, PointAction.VENUE_SHARED)
+            toast.success('¡+5 puntos! ⭐')
+          } catch (error) {
+            console.error('Error adding points:', error)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error sharing venue:', error)
+    } finally {
+      setIsSharing(false)
+    }
   }
 
   // Manejar errores de carga de imagen
@@ -317,9 +359,19 @@ export default function VenueSheet({
             {/* Botón de guardar */}
             <button
               onClick={handleSaveVenue}
-              className="py-3 px-4 rounded-lg transition-colors bg-dark-secondary text-text-light hover:bg-dark-hover flex items-center justify-center"
+              disabled={isSaving}
+              className="py-3 px-4 rounded-lg transition-colors bg-dark-secondary text-text-light hover:bg-dark-hover flex items-center justify-center disabled:opacity-50"
             >
               <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-current text-yellow-400' : ''}`} />
+            </button>
+            
+            {/* Botón de compartir */}
+            <button
+              onClick={handleShareVenue}
+              disabled={isSharing}
+              className="py-3 px-4 rounded-lg transition-colors bg-dark-secondary text-text-light hover:bg-dark-hover flex items-center justify-center disabled:opacity-50"
+            >
+              <Share2 className="w-5 h-5" />
             </button>
           </div>
           

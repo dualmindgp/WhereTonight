@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     // Devolver imagen de fallback en lugar de error
     try {
       const { buffer, contentType } = await fetchFallbackImage(venueType)
-      return new NextResponse(buffer, {
+      return new NextResponse(buffer as any, {
         headers: {
           'Content-Type': contentType,
           'Cache-Control': 'public, max-age=604800',
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Devolver imagen de fallback
     try {
       const { buffer, contentType } = await fetchFallbackImage(venueType)
-      return new NextResponse(buffer, {
+      return new NextResponse(buffer as any, {
         headers: {
           'Content-Type': contentType,
           'Cache-Control': 'public, max-age=604800',
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
   // Verificar cache
   const cached = photoCache.get(photoRef)
   if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-    return new NextResponse(cached.data, {
+    return new NextResponse(cached.data as any, {
       headers: {
         'Content-Type': cached.contentType,
         'Cache-Control': 'public, max-age=604800, immutable',
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       console.error('Google Places API error:', response.status)
       // Usar fallback en lugar de devolver error
       const { buffer, contentType } = await fetchFallbackImage(venueType)
-      return new NextResponse(buffer, {
+      return new NextResponse(buffer as any, {
         headers: {
           'Content-Type': contentType,
           'Cache-Control': 'public, max-age=604800',
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
     // Devolver imagen de fallback en lugar de error
     try {
       const { buffer, contentType } = await fetchFallbackImage(venueType)
-      return new NextResponse(buffer, {
+      return new NextResponse(buffer as any, {
         headers: {
           'Content-Type': contentType,
           'Cache-Control': 'public, max-age=604800',

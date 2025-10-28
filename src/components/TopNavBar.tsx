@@ -28,7 +28,7 @@ export default function TopNavBar({
   const [showResults, setShowResults] = useState(false)
   const [selectedCity, setSelectedCity] = useState<string>('')
   const [isSearching, setIsSearching] = useState(false)
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Cargar ciudad desde sessionStorage al montar

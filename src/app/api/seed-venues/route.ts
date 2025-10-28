@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server'
-import { seedVenues } from '../../../scripts/seed-venues'
+// import { seedVenues } from '../../../scripts/seed-venues'
 
 export async function POST() {
+  // Ruta deshabilitada temporalmente
+  return NextResponse.json({ 
+    success: false, 
+    error: 'Seed route disabled' 
+  }, { status: 503 })
+  
+  /*
   try {
     // Solo permitir en desarrollo
     if (process.env.NODE_ENV === 'production') {
@@ -22,4 +29,5 @@ export async function POST() {
       error: error instanceof Error ? error.message : 'Unknown error' 
     }, { status: 500 })
   }
+  */
 }
