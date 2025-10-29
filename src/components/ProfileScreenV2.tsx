@@ -4,7 +4,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { 
   Camera, Settings, Share2, Edit2,
-  LogOut, Bookmark, Clock, ChevronRight, Crown
+  LogOut, Bookmark, Clock, ChevronRight, Crown,
+  Star, TrendingUp, QrCode
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -13,6 +14,8 @@ import EditNameModal from './EditNameModal'
 import { VenueWithCount } from '@/lib/database.types'
 import { logger, withErrorHandling } from '@/lib/logger'
 import { useToastContext } from '@/contexts/ToastContext'
+import QRScanner from './QRScanner'
+import { getUserPoints, getLevelFromPoints } from '@/lib/points-system'
 
 interface ProfileScreenV2Props {
   user: User
@@ -42,6 +45,9 @@ export default function ProfileScreenV2({
   const [showAddFriendModal, setShowAddFriendModal] = useState(false)
   const [showEditNameModal, setShowEditNameModal] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [showQRScanner, setShowQRScanner] = useState(false)
+  const [points, setPoints] = useState(0)
+  const [level, setLevel] = useState(1)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const uploadAvatar = async (file: File) => {
@@ -195,6 +201,15 @@ export default function ProfileScreenV2({
           .eq('friend_id', user.id)
           .eq('status', 'pending')
         setPendingRequestsCount(pendingRequests || 0)
+
+        // 6. Puntos y nivel
+        try {
+          const totalPoints = await getUserPoints(user.id)
+          setPoints(totalPoints)
+          setLevel(getLevelFromPoints(totalPoints))
+        } catch (error) {
+          console.error('Error loading points:', error)
+        }
       } catch (error) {
         logger.error('Error al cargar estadísticas', error as Error, { userId: user.id })
       }
@@ -330,6 +345,36 @@ export default function ProfileScreenV2({
           </button>
         </div>
 
+        {/* Puntos y Nivel */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Puntos Card */}
+          <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 rounded-xl p-4 border border-yellow-500/30">
+            <div className="flex items-center gap-2 mb-2">
+              <Star className="w-5 h-5 text-yellow-400 fill-current" />
+              <span className="text-yellow-400 font-bold text-lg">{points}</span>
+            </div>
+            <p className="text-text-secondary text-xs">Puntos</p>
+          </div>
+
+          {/* Nivel Card */}
+          <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-xl p-4 border border-orange-500/30">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingUp className="w-5 h-5 text-orange-400" />
+              <span className="text-orange-400 font-bold text-lg">{level}</span>
+            </div>
+            <p className="text-text-secondary text-xs">Nivel</p>
+          </div>
+        </div>
+
+        {/* QR Scanner Button */}
+        <button
+          onClick={() => setShowQRScanner(true)}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 transition-all border border-purple-500/30"
+        >
+          <QrCode className="w-5 h-5 text-purple-400" />
+          <span className="text-purple-400 font-semibold">Escanear Código QR</span>
+        </button>
+
         {/* Favoritos e Historial */}
         <div className="grid grid-cols-2 gap-3">
           <button 
@@ -422,6 +467,17 @@ export default function ProfileScreenV2({
         userId={user.id}
         onClose={() => setShowEditNameModal(false)}
         onSuccess={onProfileUpdated}
+      />
+
+      {/* QR Scanner */}
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={(code) => {
+          console.log('QR Code scanned:', code)
+          toast.success(`Código escaneado: ${code}`)
+          setShowQRScanner(false)
+        }}
       />
     </div>
   )

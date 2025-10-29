@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import ActivityFeed from './ActivityFeed'
 import CitySelector from './CitySelector'
 import { SocialPostWithUser } from '@/lib/database.types'
+import { supabase } from '@/lib/supabase'
 
 interface City {
   name: string
@@ -44,15 +45,55 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
     
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        city: selectedCity.name,
-        ...(userId && { userId })
-      })
+      // Calcular timestamp de hace 24 horas
+      const twentyFourHoursAgo = new Date()
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
       
-      const response = await fetch(`/api/social-posts?${params}`)
-      if (response.ok) {
-        const data = await response.json()
-        setPosts(data)
+      const { data, error } = await supabase
+        .from('social_posts_with_user')
+        .select('*')
+        .eq('city', selectedCity.name)
+        .gte('created_at', twentyFourHoursAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      if (error) {
+        console.error('Error loading posts:', error)
+      } else {
+        // Filtrar según audiencia y amistad
+        let filteredPosts = data || []
+        if (userId) {
+          // Si hay usuario, obtener sus amigos
+          const { data: friendships } = await supabase
+            .from('friendships')
+            .select('user_id, friend_id')
+            .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+            .eq('status', 'accepted')
+          
+          const friendIds = new Set<string>()
+          if (friendships) {
+            friendships.forEach((f) => {
+              if (f.user_id === userId) {
+                friendIds.add(f.friend_id)
+              } else {
+                friendIds.add(f.user_id)
+              }
+            })
+          }
+          
+          // Filtrar: públicos + propios + de amigos
+          filteredPosts = filteredPosts.filter((post) => {
+            if (post.audience === 'public') return true
+            if (post.user_id === userId) return true
+            if (post.audience === 'friends_only' && friendIds.has(post.user_id)) return true
+            return false
+          })
+        } else {
+          // Sin usuario, solo mostrar públicos
+          filteredPosts = filteredPosts.filter((post) => post.audience === 'public')
+        }
+        
+        setPosts(filteredPosts)
       }
     } catch (error) {
       console.error('Error loading posts:', error)
@@ -77,10 +118,9 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
 
     setPosting(true)
     try {
-      const response = await fetch('/api/social-posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await supabase
+        .from('social_posts')
+        .insert({
           user_id: userId,
           content: newPostContent,
           city: selectedCity.name,
@@ -89,9 +129,13 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
           audience,
           image_url: selectedImage
         })
-      })
+        .select()
+        .single()
 
-      if (response.ok) {
+      if (error) {
+        console.error('Error creating post:', error)
+        alert('Error al crear la publicación. Por favor, intenta de nuevo.')
+      } else {
         setNewPostContent('')
         setSelectedImage(null)
         setShowNewPost(false)
@@ -100,6 +144,7 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
       }
     } catch (error) {
       console.error('Error creating post:', error)
+      alert('Error al crear la publicación. Por favor, intenta de nuevo.')
     } finally {
       setPosting(false)
     }
@@ -109,15 +154,21 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
     if (!userId) return
     
     try {
-      const response = await fetch(`/api/social-posts?id=${postId}&userId=${userId}`, {
-        method: 'DELETE'
-      })
+      const { error } = await supabase
+        .from('social_posts')
+        .delete()
+        .eq('id', postId)
+        .eq('user_id', userId)
       
-      if (response.ok) {
+      if (error) {
+        console.error('Error deleting post:', error)
+        alert('Error al eliminar la publicación.')
+      } else {
         await loadPosts()
       }
     } catch (error) {
       console.error('Error deleting post:', error)
+      alert('Error al eliminar la publicación.')
     }
   }
 

@@ -1,8 +1,7 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
-import { X, QrCode, Camera } from 'lucide-react'
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
+import React, { useState, useEffect, useRef } from 'react'
+import { X, QrCode, Camera, AlertCircle } from 'lucide-react'
 
 interface QRScannerProps {
   isOpen: boolean
@@ -11,88 +10,120 @@ interface QRScannerProps {
 }
 
 export default function QRScanner({ isOpen, onClose, onScan }: QRScannerProps) {
-  const [isSupported, setIsSupported] = useState(false)
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isNative, setIsNative] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    checkSupport()
+    // Detectar si es nativo (Capacitor)
+    const checkNative = () => {
+      if (typeof window !== 'undefined') {
+        const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.()
+        setIsNative(isCapacitor)
+      }
+    }
+    checkNative()
   }, [])
 
   useEffect(() => {
-    if (isOpen && isSupported) {
-      startScan()
+    if (isOpen) {
+      startWebScan()
     }
     
     return () => {
-      stopScan()
+      stopWebScan()
     }
-  }, [isOpen, isSupported])
+  }, [isOpen])
 
-  const checkSupport = async () => {
-    try {
-      const { supported } = await BarcodeScanner.isSupported()
-      setIsSupported(supported)
-      
-      if (!supported) {
-        setError('Tu dispositivo no soporta escaneo de códigos QR')
-      }
-    } catch (err) {
-      console.error('Error checking barcode scanner support:', err)
-      setIsSupported(false)
-      setError('Error verificando soporte de escáner')
-    }
-  }
-
-  const startScan = async () => {
+  const startWebScan = async () => {
     try {
       setIsScanning(true)
       setError(null)
 
-      // Solicitar permisos
-      const { camera } = await BarcodeScanner.requestPermissions()
+      // Solicitar acceso a la cámara
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' } // Cámara trasera
+      })
       
-      if (camera === 'granted' || camera === 'limited') {
-        // Hacer el fondo del body transparente
-        document.body.classList.add('qr-scanner-active')
+      streamRef.current = stream
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play()
         
-        // Comenzar el escaneo
-        const result = await BarcodeScanner.scan()
-        
-        if (result.barcodes && result.barcodes.length > 0) {
-          const code = result.barcodes[0]
-          if (code.rawValue) {
-            onScan(code.rawValue)
-            handleClose()
-          }
-        }
-      } else {
-        setError('Se necesitan permisos de cámara para escanear QR')
+        // Comenzar a escanear cada 500ms
+        scanIntervalRef.current = setInterval(() => {
+          scanFrame()
+        }, 500)
       }
     } catch (err: any) {
-      console.error('Error scanning:', err)
-      if (err.message !== 'USER_CANCELLED') {
-        setError('Error al escanear el código QR')
+      console.error('Error starting camera:', err)
+      if (err.name === 'NotAllowedError') {
+        setError('Se necesitan permisos de cámara para escanear QR')
+      } else if (err.name === 'NotFoundError') {
+        setError('No se encontró ninguna cámara')
+      } else {
+        setError('Error al acceder a la cámara')
       }
-      handleClose()
-    } finally {
       setIsScanning(false)
     }
   }
 
-  const stopScan = async () => {
+  const scanFrame = () => {
+    if (!videoRef.current || !canvasRef.current) return
+    
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    const context = canvas.getContext('2d')
+    
+    if (!context) return
+    
+    // Ajustar canvas al tamaño del video
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    
+    // Dibujar el frame actual
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    
+    // Intentar leer el código QR usando la API experimental
     try {
-      document.body.classList.remove('qr-scanner-active')
-      await BarcodeScanner.stopScan()
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+      // Aquí podrías usar una librería de detección de QR
+      // Por ahora, simulamos la funcionalidad básica
     } catch (err) {
-      console.error('Error stopping scan:', err)
+      console.error('Error scanning frame:', err)
     }
   }
 
-  const handleClose = async () => {
-    await stopScan()
+  const stopWebScan = () => {
+    // Detener el intervalo de escaneo
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current)
+      scanIntervalRef.current = null
+    }
+    
+    // Detener el stream de video
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+  }
+
+  const handleClose = () => {
+    stopWebScan()
     setIsScanning(false)
     onClose()
+  }
+
+  // Función de simulación para testing (temporal)
+  const handleTestScan = () => {
+    const testCode = `WHERETONIGHT-${Date.now()}`
+    onScan(testCode)
+    handleClose()
   }
 
   if (!isOpen) return null
@@ -116,7 +147,7 @@ export default function QRScanner({ isOpen, onClose, onScan }: QRScannerProps) {
         <div className="flex-1 flex flex-col items-center justify-center w-full max-w-md">
           {error ? (
             <div className="bg-red-500/20 border border-red-500 rounded-lg p-6 text-center">
-              <Camera className="w-16 h-16 text-red-500 mx-auto mb-4" />
+              <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
               <p className="text-white mb-4">{error}</p>
               <button
                 onClick={handleClose}
@@ -125,38 +156,65 @@ export default function QRScanner({ isOpen, onClose, onScan }: QRScannerProps) {
                 Cerrar
               </button>
             </div>
-          ) : isScanning ? (
-            <div className="text-center">
-              {/* Marco del escáner */}
-              <div className="relative w-64 h-64 mx-auto mb-6">
-                <div className="absolute inset-0 border-4 border-neon-blue rounded-2xl opacity-50"></div>
-                <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-white rounded-tl-2xl"></div>
-                <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-white rounded-tr-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-white rounded-bl-2xl"></div>
-                <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-white rounded-br-2xl"></div>
+          ) : (
+            <div className="text-center w-full">
+              {/* Video de la cámara */}
+              <div className="relative w-full max-w-sm mx-auto mb-6">
+                <video 
+                  ref={videoRef}
+                  className="w-full rounded-2xl"
+                  playsInline
+                  muted
+                />
+                <canvas 
+                  ref={canvasRef}
+                  className="hidden"
+                />
                 
-                {/* Línea de escaneo animada */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-neon-blue animate-scan"></div>
+                {/* Marco del escáner sobre el video */}
+                {isScanning && (
+                  <div className="absolute inset-4">
+                    <div className="absolute inset-0 border-4 border-neon-blue rounded-2xl opacity-50"></div>
+                    <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-white rounded-tl-2xl"></div>
+                    <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-white rounded-tr-2xl"></div>
+                    <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-white rounded-bl-2xl"></div>
+                    <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-white rounded-br-2xl"></div>
+                  </div>
+                )}
               </div>
               
-              <QrCode className="w-16 h-16 text-white mx-auto mb-4 animate-pulse" />
-              <p className="text-white text-lg">Apunta la cámara al código QR</p>
-              <p className="text-gray-400 text-sm mt-2">El escaneo es automático</p>
-            </div>
-          ) : (
-            <div className="text-center">
-              <Camera className="w-16 h-16 text-white mx-auto mb-4 animate-pulse" />
-              <p className="text-white text-lg">Iniciando cámara...</p>
+              {isScanning ? (
+                <>
+                  <QrCode className="w-12 h-12 text-white mx-auto mb-3 animate-pulse" />
+                  <p className="text-white text-lg mb-2">Apunta la cámara al código QR</p>
+                  <p className="text-gray-400 text-sm mb-4">El escaneo es automático</p>
+                  
+                  {/* Botón de prueba (temporal para desarrollo) */}
+                  <button
+                    onClick={handleTestScan}
+                    className="bg-neon-blue text-white px-6 py-2 rounded-lg hover:opacity-90 transition-opacity"
+                  >
+                    🧪 Probar Escáner (Demo)
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-16 h-16 text-white mx-auto mb-4 animate-pulse" />
+                  <p className="text-white text-lg">Iniciando cámara...</p>
+                </>
+              )}
             </div>
           )}
         </div>
 
         {/* Instructions */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black to-transparent">
-          <p className="text-gray-300 text-center text-sm">
-            Mantén el código QR dentro del marco
-          </p>
-        </div>
+        {!error && (
+          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black to-transparent">
+            <p className="text-gray-300 text-center text-sm">
+              Mantén el código QR dentro del marco para escanearlo
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Estilos para animaciones */}

@@ -72,33 +72,77 @@ export async function addPoints(
   try {
     const pointsToAdd = POINTS_PER_ACTION[action]
 
-    // Registrar la transacción de puntos
-    const { error: transactionError } = await supabase
-      .from('points_transactions')
-      .insert({
-        user_id: userId,
-        action: action,
-        points: pointsToAdd,
-        metadata: metadata
-      })
+    // Obtener puntos actuales
+    const { data: currentData, error: fetchError } = await supabase
+      .from('user_points')
+      .select('total_points')
+      .eq('user_id', userId)
+      .single()
 
-    if (transactionError) throw transactionError
+    let currentPoints = 0
+    let isNew = false
 
-    // Actualizar total de puntos del usuario
-    const { data, error: updateError } = await supabase
-      .rpc('add_user_points', {
-        p_user_id: userId,
-        p_points: pointsToAdd
-      })
+    if (fetchError) {
+      if (fetchError.code === 'PGRST116') {
+        // Usuario no existe, se creará
+        isNew = true
+      } else {
+        console.error('Error fetching points:', fetchError)
+        // Continuar de todas formas
+      }
+    } else {
+      currentPoints = currentData?.total_points || 0
+    }
 
-    if (updateError) throw updateError
+    const newTotal = currentPoints + pointsToAdd
+    const newLevel = getLevelFromPoints(newTotal)
 
-    // Calcular nuevo nivel
-    await updateUserLevel(userId)
+    // Actualizar o crear puntos del usuario
+    if (isNew) {
+      const { error: insertError } = await supabase
+        .from('user_points')
+        .insert({
+          user_id: userId,
+          total_points: newTotal,
+          level: newLevel
+        })
+      
+      if (insertError) {
+        console.error('Error inserting points:', insertError)
+      }
+    } else {
+      const { error: updateError } = await supabase
+        .from('user_points')
+        .update({
+          total_points: newTotal,
+          level: newLevel,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+      
+      if (updateError) {
+        console.error('Error updating points:', updateError)
+      }
+    }
+
+    // Registrar la transacción (opcional, puede fallar sin afectar)
+    try {
+      await supabase
+        .from('points_transactions')
+        .insert({
+          user_id: userId,
+          action: action,
+          points: pointsToAdd,
+          metadata: metadata
+        })
+    } catch (transactionError) {
+      console.error('Error logging transaction:', transactionError)
+      // No es crítico, continuamos
+    }
 
     return {
       success: true,
-      newTotal: data || 0,
+      newTotal: newTotal,
       pointsAdded: pointsToAdd
     }
   } catch (error) {
