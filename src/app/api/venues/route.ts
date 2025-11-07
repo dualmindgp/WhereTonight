@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseServer } from '@/lib/supabase-server'
 import { VenueWithCount } from '@/lib/database.types'
 
 // Deshabilitar cache para obtener siempre datos frescos
@@ -9,7 +9,7 @@ export const revalidate = 0
 export async function GET() {
   try {
     // Obtener venues activos
-    const { data: venues, error: venuesError } = await supabase
+    const { data: venues, error: venuesError } = await supabaseServer
       .from('venues')
       .select('*')
       .eq('is_active', true)
@@ -24,7 +24,7 @@ export async function GET() {
     const today = new Date().toISOString().split('T')[0]
     
     // Consultar TODOS los tickets del día directamente
-    const { data: allTickets } = await supabase
+    const { data: allTickets } = await supabaseServer
       .from('tickets')
       .select('venue_id')
       .eq('local_date', today)

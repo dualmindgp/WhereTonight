@@ -66,11 +66,11 @@ export default function CityOnboarding({ onCitySelect }: CityOnboardingProps) {
           // 1. Buscar en España primero
           `https://nominatim.openstreetmap.org/search?` +
           `q=${encodeURIComponent(searchQuery)},España&` +
-          `format=json&addressdetails=1&limit=4&featuretype=city`,
+          `format=json&addressdetails=1&limit=4&featuretype=city&accept-language=es`,
           // 2. Buscar en Europa
           `https://nominatim.openstreetmap.org/search?` +
           `q=${encodeURIComponent(searchQuery)},Europe&` +
-          `format=json&addressdetails=1&limit=4&featuretype=city`
+          `format=json&addressdetails=1&limit=4&featuretype=city&accept-language=es`
         ]
 
         const results = await Promise.all(

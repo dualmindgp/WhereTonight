@@ -48,7 +48,8 @@ export default function CitySelector({ selectedCity, onCitySelect, placeholder =
           `q=${encodeURIComponent(query)}&` +
           `format=json&` +
           `addressdetails=1&` +
-          `limit=10`,
+          `limit=10&` +
+          `accept-language=es`,
           {
             headers: {
               'User-Agent': 'WhereTonight/1.0'

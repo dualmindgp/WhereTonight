@@ -48,7 +48,7 @@ export default function TwoStepSearchBar({
 
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&featuretype=city`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&featuretype=city&accept-language=es`
       )
       const data = await response.json()
       setCityResults(data)
