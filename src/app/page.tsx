@@ -165,9 +165,13 @@ export default function Home() {
   }
 
   const handleUseTicket = async (venueId: string): Promise<boolean> => {
-    if (!user || hasUsedTicketToday) return false
+    // TESTING MODE: Permitir múltiples tickets
+    // if (!user || hasUsedTicketToday) return false
+    if (!user) return false
 
     try {
+      console.log('🎫 Attempting to create ticket:', { userId: user.id, venueId, today: new Date().toISOString().split('T')[0] })
+      
       // Usar fecha UTC estándar para consistencia global
       const today = new Date().toISOString().split('T')[0] // Formato: YYYY-MM-DD
 
@@ -181,8 +185,20 @@ export default function Home() {
         .select()
 
       if (error) {
-        console.error('Error using ticket:', error)
-        return false
+        console.error('❌ Error using ticket - FULL ERROR:', error)
+        console.error('Error code:', error.code)
+        console.error('Error message:', error.message)
+        console.error('Error details:', error.details)
+        
+        // TESTING MODE: Ignorar error de ticket duplicado (23505)
+        if (error.code === '23505') {
+          console.log('⚠️ TESTING MODE: Ignorando error de ticket duplicado, continuando...')
+          // Continuar como si hubiera tenido éxito
+        } else {
+          return false
+        }
+      } else {
+        console.log('✅ Ticket created successfully:', data)
       }
 
       // Actualizar estado y recargar datos

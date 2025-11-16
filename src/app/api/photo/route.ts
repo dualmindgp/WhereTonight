@@ -70,10 +70,27 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Usar SIEMPRE la API clásica de Google Places Photos
-    const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${photoRef}&key=${apiKey}`
+    // Verificar que el photoRef tenga el formato correcto de la NEW Places API
+    if (!photoRef.includes('places/')) {
+      console.warn(`Photo reference in old format: ${photoRef.substring(0, 50)}... - using fallback`)
+      // Usar fallback para referencias en formato antiguo
+      const { buffer, contentType } = await fetchFallbackImage(venueType)
+      return new NextResponse(buffer as any, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=604800',
+        },
+      })
+    }
+
+    // Usar la NEW Google Places API (v1) para fotos
+    const photoUrl = `https://places.googleapis.com/v1/${photoRef}/media?maxHeightPx=800&maxWidthPx=800`
     
-    const response = await fetch(photoUrl)
+    const response = await fetch(photoUrl, {
+      headers: {
+        'X-Goog-Api-Key': apiKey
+      }
+    })
 
     if (!response.ok) {
       console.error('Google Places API error:', response.status)

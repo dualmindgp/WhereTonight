@@ -1,12 +1,12 @@
 'use client'
 
-import React from 'react'
-import { X, AlertCircle, Ticket } from 'lucide-react'
+import React, { useState } from 'react'
+import { X, AlertCircle, Ticket, Share2 } from 'lucide-react'
 
 interface ConfirmTicketModalProps {
   isOpen: boolean
   venueName: string
-  onConfirm: () => void
+  onConfirm: (shareToStory: boolean) => void
   onCancel: () => void
 }
 
@@ -16,6 +16,8 @@ export default function ConfirmTicketModal({
   onConfirm, 
   onCancel 
 }: ConfirmTicketModalProps) {
+  const [shareToStory, setShareToStory] = useState(true)
+  
   if (!isOpen) return null
 
   return (
@@ -54,9 +56,40 @@ export default function ConfirmTicketModal({
             </p>
           </div>
 
-          <p className="text-text-secondary text-sm text-center mb-6">
+          <p className="text-text-secondary text-sm text-center mb-4">
             Tus amigos podrán ver que irás a este local esta noche
           </p>
+
+          {/* Opción de compartir en historia */}
+          <div className="bg-gradient-to-r from-neon-pink/10 to-neon-blue/10 rounded-lg p-4 mb-6 border border-neon-blue/20">
+            <button
+              onClick={() => setShareToStory(!shareToStory)}
+              className="w-full flex items-center justify-between"
+            >
+              <div className="flex items-center space-x-3">
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                  shareToStory 
+                    ? 'bg-neon-pink border-neon-pink' 
+                    : 'border-gray-500'
+                }`}>
+                  {shareToStory && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-neon-blue" />
+                    <span className="text-text-light font-semibold text-sm">Compartir en mi historia</span>
+                  </div>
+                  <p className="text-text-secondary text-xs mt-0.5">
+                    Invita a tus amigos a unirse con un post automático
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
 
           {/* Botones de acción */}
           <div className="flex space-x-3">
@@ -67,7 +100,7 @@ export default function ConfirmTicketModal({
               Cancelar
             </button>
             <button
-              onClick={onConfirm}
+              onClick={() => onConfirm(shareToStory)}
               className="flex-1 py-3 px-4 rounded-lg bg-gradient-to-r from-neon-pink to-neon-pink/80 text-white hover:opacity-90 transition-opacity font-bold shadow-lg shadow-neon-pink/30"
             >
               Sí, voy a ir

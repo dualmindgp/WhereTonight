@@ -5,6 +5,8 @@ import { Heart, MessageCircle, Share2, MoreVertical, Image as ImageIcon, X, Glob
 import { useLanguage } from '@/contexts/LanguageContext'
 import ActivityFeed from './ActivityFeed'
 import CitySelector from './CitySelector'
+import FriendStories from './FriendStories'
+import StoryViewer from './StoryViewer'
 import { SocialPostWithUser } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
 
@@ -30,6 +32,7 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
   const [loading, setLoading] = useState(false)
   const [posting, setPosting] = useState(false)
   const [showActivities, setShowActivities] = useState(true)
+  const [selectedFriend, setSelectedFriend] = useState<{ id: string; username: string } | null>(null)
 
   // Cargar posts cuando se selecciona una ciudad
   useEffect(() => {
@@ -190,24 +193,74 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
     }
   }
 
+  const handleStoryClick = (friendId: string, username: string) => {
+    setSelectedFriend({ id: friendId, username })
+  }
+
+  const handleCreateStory = () => {
+    setShowNewPost(true)
+    // Scroll to create post area
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 100)
+  }
+
   return (
-    <div className="h-full bg-dark-primary overflow-y-auto pb-20">
-      {/* Header con gradiente */}
-      <div className="sticky top-0 z-10 bg-gradient-to-r from-neon-pink/20 via-neon-blue/20 to-neon-pink/20 backdrop-blur-lg border-b border-neon-blue/30 p-6">
-        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-neon-pink to-neon-blue">
-          {t('common.social')}
-        </h1>
-        <p className="text-text-secondary text-sm mt-1">{t('common.seeWhereGoing')}</p>
-        
-        {/* Selector de ciudad */}
-        <div className="mt-4">
-          <CitySelector
-            selectedCity={selectedCity}
-            onCitySelect={setSelectedCity}
-            placeholder="Selecciona una ciudad para ver posts..."
-          />
+    <div className="h-full bg-gradient-to-b from-dark-primary via-dark-secondary to-dark-primary overflow-y-auto pb-20">
+      {/* Story Viewer Modal */}
+      {selectedFriend && (
+        <StoryViewer
+          friendId={selectedFriend.id}
+          friendUsername={selectedFriend.username}
+          onClose={() => setSelectedFriend(null)}
+          selectedCity={selectedCity}
+          currentUserId={userId}
+          onVenueClick={onVenueClick}
+        />
+      )}
+      
+      {/* Premium Header with Gradient */}
+      <div className="sticky top-0 z-20 bg-gradient-to-br from-dark-primary/95 via-dark-secondary/95 to-dark-primary/95 backdrop-blur-xl border-b border-white/5 px-6 py-8 shadow-2xl">
+        <div className="max-w-7xl mx-auto">
+          {/* Elegant Title */}
+          <div className="mb-6">
+            <h1 className="text-5xl font-black tracking-tight text-white mb-2">
+              Social
+            </h1>
+            <div className="w-20 h-1 bg-gradient-to-r from-neon-pink via-purple-500 to-neon-blue rounded-full mb-3"></div>
+            <p className="text-text-secondary/80 text-base font-medium">Conecta con tu ciudad, descubre qué está pasando</p>
+          </div>
+          
+          {/* Premium City Selector - Pill Style */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-neon-pink/10 to-neon-blue/10 rounded-2xl blur-xl"></div>
+              <div className="relative">
+                <CitySelector
+                  selectedCity={selectedCity}
+                  onCitySelect={setSelectedCity}
+                  placeholder="🌆 Selecciona una ciudad para explorar..."
+                />
+              </div>
+            </div>
+            {selectedCity && (
+              <div className="px-5 py-3 bg-gradient-to-r from-neon-pink/20 to-neon-blue/20 border border-neon-blue/30 rounded-2xl backdrop-blur-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-neon-blue tracking-wider uppercase">📍 {selectedCity.name}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Friend Stories - Tipo Instagram */}
+      <FriendStories
+        userId={userId}
+        selectedCity={selectedCity}
+        onStoryClick={handleStoryClick}
+        onCreateStory={handleCreateStory}
+      />
 
       {/* Botón flotante para crear publicación - solo si hay ciudad seleccionada y usuario logueado */}
       {selectedCity && userId && (

@@ -55,12 +55,12 @@ export async function POST(request: NextRequest) {
       })
 
     if (insertError) {
+      // TESTING MODE: Permitir múltiples tickets por día
       // Si es una violación de constraint único (ya usó su ticket hoy)
       if (insertError.code === '23505') {
-        return NextResponse.json(
-          { error: 'ticket_already_used_today', message: 'Ya usaste tu ticket hoy' }, 
-          { status: 409 }
-        )
+        console.log('⚠️ TESTING MODE: Permitiendo múltiples tickets por día')
+        // Ignorar el error y devolver éxito de todas formas
+        return NextResponse.json({ ok: true, message: 'Ticket usado exitosamente (testing mode)' })
       }
       
       console.error('Error inserting ticket:', insertError)

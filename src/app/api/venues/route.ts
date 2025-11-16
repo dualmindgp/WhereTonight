@@ -8,6 +8,8 @@ export const revalidate = 0
 
 export async function GET() {
   try {
+    console.log('🔵 [/api/venues] Iniciando consulta de venues...')
+    
     // Obtener venues activos
     const { data: venues, error: venuesError } = await supabaseServer
       .from('venues')
@@ -16,9 +18,22 @@ export async function GET() {
       .order('name')
 
     if (venuesError) {
-      console.error('Error fetching venues:', venuesError)
-      return NextResponse.json({ error: 'Error fetching venues' }, { status: 500 })
+      console.error('❌ [/api/venues] Error fetching venues:', {
+        message: venuesError.message,
+        details: venuesError.details,
+        hint: venuesError.hint,
+        code: venuesError.code
+      })
+      return NextResponse.json({ 
+        error: 'Error fetching venues',
+        message: venuesError.message,
+        details: venuesError.details,
+        hint: venuesError.hint,
+        code: venuesError.code
+      }, { status: 500 })
     }
+
+    console.log(`✅ [/api/venues] Venues obtenidos: ${venues?.length || 0}`)
 
     // Obtener fecha actual en formato YYYY-MM-DD (UTC)
     const today = new Date().toISOString().split('T')[0]
@@ -54,7 +69,17 @@ export async function GET() {
     return NextResponse.json(venuesWithCounts)
 
   } catch (error) {
-    console.error('Unexpected error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('❌ [/api/venues] Unexpected error:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      type: typeof error,
+      error: JSON.stringify(error, null, 2)
+    })
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      details: error instanceof Error ? error.stack : String(error)
+    }, { status: 500 })
   }
 }
