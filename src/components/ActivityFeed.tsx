@@ -24,9 +24,10 @@ interface ActivityFeedProps {
   limit?: number
   userId?: string // Si se proporciona, solo muestra actividades de ese usuario
   cityFilter?: { name: string; lat: number; lng: number } | null // Filtrar por ciudad
+  onUserClick?: (userId: string, username: string | null) => void
 }
 
-export default function ActivityFeed({ onVenueClick, limit, userId, cityFilter }: ActivityFeedProps) {
+export default function ActivityFeed({ onVenueClick, limit, userId, cityFilter, onUserClick }: ActivityFeedProps) {
   const { t } = useLanguage()
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
@@ -145,22 +146,40 @@ export default function ActivityFeed({ onVenueClick, limit, userId, cityFilter }
   return (
     <div className="space-y-3">
       {activities.map((activity) => (
-        <div
+        <button
           key={activity.id}
-          className="bg-dark-card rounded-2xl p-4 border border-neon-blue/20 hover:border-neon-pink/40 transition-all cursor-pointer"
-          onClick={() => onVenueClick?.(activity.venue_id)}
+          onClick={() => onUserClick?.(activity.user_id, activity.username)}
+          className="relative w-full overflow-hidden rounded-2xl border border-neon-blue/20 hover:border-neon-pink/40 transition-all text-left group cursor-pointer bg-dark-card"
         >
-          <div className="flex items-start space-x-3">
+          {/* Fondo difuminado: avatar del usuario o imagen de fiesta por defecto */}
+          <div className="absolute inset-0">
+            {activity.avatar_url ? (
+              <img
+                src={activity.avatar_url}
+                alt={activity.username || 'User'}
+                className="w-full h-full object-cover scale-110 group-hover:scale-115 transition-transform duration-500"
+              />
+            ) : (
+              <img
+                src="/logo.png"
+                alt="Fiesta"
+                className="w-full h-full object-cover scale-110 group-hover:scale-115 transition-transform duration-500"
+              />
+            )}
+            <div className="absolute inset-0 bg-black/70 group-hover:bg-black/60 transition-colors duration-300 backdrop-blur-md"></div>
+          </div>
+
+          <div className="relative p-4 flex items-start space-x-3">
             {/* Avatar */}
             <div className="flex-shrink-0">
               {activity.avatar_url ? (
                 <img
                   src={activity.avatar_url}
                   alt={activity.username || 'User'}
-                  className="w-12 h-12 rounded-full object-cover border-2 border-neon-blue/30"
+                  className="w-12 h-12 rounded-full object-cover border-2 border-neon-blue/60 shadow-lg"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-neon-pink to-neon-blue flex items-center justify-center text-white font-bold text-lg">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-neon-pink to-neon-blue flex items-center justify-center text-white font-bold text-lg shadow-lg">
                   {(activity.username || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
@@ -176,29 +195,30 @@ export default function ActivityFeed({ onVenueClick, limit, userId, cityFilter }
                 <span className="font-semibold text-neon-pink">
                   {activity.venue_name}
                 </span>
-                
               </p>
-              
-              <div className="flex items-center space-x-2 mt-2 text-text-secondary text-sm">
-                <Clock className="w-4 h-4" />
-                <span>{formatTimestamp(activity.created_at)}</span>
+
+              <div className="flex items-center justify-between mt-2 text-text-secondary text-sm">
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4" />
+                  <span>{formatTimestamp(activity.created_at)}</span>
+                </div>
+
+                {/* Icono para ir al local, manteniendo comportamiento actual */}
+                <button
+                  className="flex-shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onVenueClick?.(activity.venue_id)
+                  }}
+                >
+                  <div className="w-10 h-10 rounded-full bg-neon-pink/10 flex items-center justify-center hover:bg-neon-pink/20 transition-colors">
+                    <MapPin className="w-5 h-5 text-neon-pink" />
+                  </div>
+                </button>
               </div>
             </div>
-
-            {/* Icon - Clickeable para ir al local */}
-            <button 
-              className="flex-shrink-0"
-              onClick={(e) => {
-                e.stopPropagation()
-                onVenueClick?.(activity.venue_id)
-              }}
-            >
-              <div className="w-10 h-10 rounded-full bg-neon-pink/10 flex items-center justify-center hover:bg-neon-pink/20 transition-colors">
-                <MapPin className="w-5 h-5 text-neon-pink" />
-              </div>
-            </button>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   )

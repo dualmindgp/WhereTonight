@@ -249,62 +249,92 @@ const Map = forwardRef<any, MapProps>(({ venues, onVenueClick, selectedVenueId, 
         // Crear contenedor interno que se escalará
         const innerContainer = document.createElement('div')
         innerContainer.className = 'venue-marker-inner'
-        innerContainer.style.width = '50px'
-        innerContainer.style.height = '65px'
+        innerContainer.style.width = '40px'
+        innerContainer.style.height = '60px'
         innerContainer.style.display = 'flex'
         innerContainer.style.flexDirection = 'column'
         innerContainer.style.alignItems = 'center'
+        innerContainer.style.justifyContent = 'flex-start'
         innerContainer.style.transformOrigin = 'bottom center'
         innerContainer.style.transform = `scale(${scale})`
         innerContainer.style.transition = 'transform 0.3s ease'
         innerContainer.style.willChange = 'transform'
         
-        // Pin con círculo perfecto y triángulo (tamaños fijos)
+        // Pin estilo premium con base luminosa y halo suave (sin número)
         innerContainer.innerHTML = `
-          <div class="marker-circle" style="
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: ${color};
-            border: 3px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 
-              0 0 20px ${glowColor},
-              0 0 40px ${glowColor},
-              inset 0 0 10px rgba(255, 255, 255, 0.2);
+          <div class="marker-live" style="
+            position: relative;
+            width: 40px;
+            height: 60px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            font-weight: bold;
-            color: white;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
-            transition: border-width 0.2s ease;
-          "></div>
-          <div class="marker-triangle" style="
-            width: 0;
-            height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-top: 15px solid ${color};
-            filter: drop-shadow(0 0 10px ${glowColor});
-            margin-top: -3px;
-          "></div>
+            justify-content: flex-start;
+          ">
+            <!-- Halo suave alrededor del pin -->
+            <div class="ring" style="
+              position: absolute;
+              top: 2px;
+              left: 50%;
+              width: 34px;
+              height: 34px;
+              transform: translateX(-50%) rotate(-45deg);
+              border-radius: 50% 50% 50% 0;
+              border: 2px solid ${color};
+              box-shadow: 0 0 18px ${glowColor};
+              opacity: 0.9;
+              animation: pulseRing 2.2s infinite ease-out;
+              transform-origin: center;
+            "></div>
+
+            <!-- Pin principal (gota con degradado) -->
+            <div class="marker-pin" style="
+              width: 40px;
+              height: 40px;
+              background: radial-gradient(circle at 30% 20%, ${color} 0%, ${color} 45%, #0a0a0a 100%);
+              border-radius: 50% 50% 50% 0;
+              transform: rotate(-45deg);
+              border: 2px solid rgba(255, 255, 255, 0.4);
+              box-shadow: 
+                0 0 18px ${glowColor},
+                0 0 36px ${glowColor},
+                0 6px 14px rgba(0, 0, 0, 0.5);
+              position: relative;
+              z-index: 2;
+              overflow: hidden;
+            ">
+            </div>
+
+            <!-- Base circular luminosa bajo el pin -->
+            <div style="
+              position: absolute;
+              bottom: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              width: 32px;
+              height: 12px;
+              border-radius: 50%;
+              background: radial-gradient(circle, ${glowColor} 0%, transparent 70%);
+              opacity: 0.9;
+              filter: blur(2px);
+            "></div>
+          </div>
         `
         
         el.appendChild(innerContainer)
         
-        // Añadir evento de hover
+        // Añadir evento de hover (ligera ampliación visual del pin)
         el.addEventListener('mouseenter', () => {
-          const circle = innerContainer.querySelector('.marker-circle') as HTMLElement
-          if (circle) {
-            circle.style.borderWidth = '6px'
+          const pin = innerContainer.querySelector('.marker-pin') as HTMLElement
+          if (pin) {
+            pin.style.boxShadow = `0 0 24px ${glowColor}, 0 0 48px ${glowColor}, 0 8px 18px rgba(0,0,0,0.6)`
           }
         })
         
         el.addEventListener('mouseleave', () => {
-          const circle = innerContainer.querySelector('.marker-circle') as HTMLElement
-          if (circle) {
-            circle.style.borderWidth = '3px'
+          const pin = innerContainer.querySelector('.marker-pin') as HTMLElement
+          if (pin) {
+            pin.style.boxShadow = `0 0 18px ${glowColor}, 0 0 36px ${glowColor}, 0 6px 14px rgba(0,0,0,0.5)`
           }
         })
         

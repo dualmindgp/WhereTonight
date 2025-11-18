@@ -12,6 +12,7 @@ interface StoryViewerProps {
   selectedCity?: { name: string; lat: number; lng: number } | null
   currentUserId?: string
   onVenueClick?: (venueId: string) => void
+  initialPostId?: string
 }
 
 export default function StoryViewer({ 
@@ -20,7 +21,8 @@ export default function StoryViewer({
   onClose,
   selectedCity,
   currentUserId,
-  onVenueClick
+  onVenueClick,
+  initialPostId
 }: StoryViewerProps) {
   const [posts, setPosts] = useState<SocialPostWithUser[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -32,7 +34,7 @@ export default function StoryViewer({
 
   useEffect(() => {
     loadFriendPosts()
-  }, [friendId, selectedCity])
+  }, [friendId, selectedCity, initialPostId])
 
   // Auto-avanzar cada 5 segundos (pausar cuando está editando)
   useEffect(() => {
@@ -73,7 +75,19 @@ export default function StoryViewer({
       if (error) {
         console.error('Error loading friend posts:', error)
       } else {
-        setPosts(data || [])
+        const loadedPosts = data || []
+        setPosts(loadedPosts)
+
+        if (initialPostId) {
+          const index = loadedPosts.findIndex((post) => post.id === initialPostId)
+          if (index >= 0) {
+            setCurrentIndex(index)
+            setProgress(0)
+          }
+        } else {
+          setCurrentIndex(0)
+          setProgress(0)
+        }
       }
     } catch (error) {
       console.error('Error loading friend posts:', error)

@@ -33,6 +33,7 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
   const [posting, setPosting] = useState(false)
   const [showActivities, setShowActivities] = useState(true)
   const [selectedFriend, setSelectedFriend] = useState<{ id: string; username: string } | null>(null)
+  const [initialPostId, setInitialPostId] = useState<string | null>(null)
 
   // Cargar posts cuando se selecciona una ciudad
   useEffect(() => {
@@ -193,8 +194,14 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
     }
   }
 
+  const handleActivityUserClick = (userId: string, username: string | null) => {
+    setSelectedFriend({ id: userId, username: username || 'Usuario' })
+    setInitialPostId(null)
+  }
+
   const handleStoryClick = (friendId: string, username: string) => {
     setSelectedFriend({ id: friendId, username })
+    setInitialPostId(null)
   }
 
   const handleCreateStory = () => {
@@ -212,10 +219,14 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
         <StoryViewer
           friendId={selectedFriend.id}
           friendUsername={selectedFriend.username}
-          onClose={() => setSelectedFriend(null)}
+          onClose={() => {
+            setSelectedFriend(null)
+            setInitialPostId(null)
+          }}
           selectedCity={selectedCity}
           currentUserId={userId}
           onVenueClick={onVenueClick}
+          initialPostId={initialPostId || undefined}
         />
       )}
       
@@ -372,7 +383,7 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
 
       {/* Content */}
       <div className="p-4">
-        <div className="space-y-4">
+        <div className="space-y-4 max-w-4xl mx-auto">
           {/* Posts sociales - Solo si hay ciudad seleccionada */}
           {selectedCity && (
             <>
@@ -393,27 +404,38 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
                         </span>
                       </div>
                       {posts.map((post) => (
-                        <div
+                        <button
                           key={post.id}
-                          className="bg-dark-card rounded-2xl p-4 border border-neon-blue/20 hover:border-neon-pink/40 transition-all"
+                          onClick={() => {
+                            setSelectedFriend({ id: post.user_id, username: post.username || 'Usuario' })
+                            setInitialPostId(post.id)
+                          }}
+                          className="relative w-full overflow-hidden rounded-2xl border border-neon-blue/20 hover:border-neon-pink/40 transition-all text-left group"
                         >
-                          <div className="flex items-start space-x-3">
-                            {/* Avatar */}
+                          <div className="absolute inset-0">
+                            <img
+                              src={post.image_url || '/logo.png'}
+                              alt="Fondo de historia"
+                              className="w-full h-full object-cover scale-105 group-hover:scale-110 transition-transform duration-500"
+                            />
+                            <div className="absolute inset-0 bg-black/70 group-hover:bg-black/60 transition-colors duration-300 backdrop-blur-md"></div>
+                          </div>
+
+                          <div className="relative p-4 flex items-start space-x-3">
                             <div className="flex-shrink-0">
                               {post.avatar_url ? (
                                 <img
                                   src={post.avatar_url}
                                   alt={post.username || 'User'}
-                                  className="w-12 h-12 rounded-full object-cover border-2 border-neon-blue/30"
+                                  className="w-12 h-12 rounded-full object-cover border-2 border-neon-blue/60 shadow-lg"
                                 />
                               ) : (
-                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-neon-pink to-neon-blue flex items-center justify-center text-white font-bold text-lg">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-neon-pink to-neon-blue flex items-center justify-center text-white font-bold text-lg shadow-lg">
                                   {(post.username || 'U').charAt(0).toUpperCase()}
                                 </div>
                               )}
                             </div>
 
-                            {/* Content */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="font-semibold text-neon-blue">
@@ -430,28 +452,23 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
                                   </div>
                                 )}
                               </div>
-                              
-                              <p className="text-text-light leading-relaxed mb-2">
+
+                              <p className="text-text-light leading-relaxed mb-2 line-clamp-3">
                                 {post.content}
                               </p>
-                              
-                              {post.image_url && (
-                                <img
-                                  src={post.image_url}
-                                  alt="Post image"
-                                  className="w-full rounded-lg max-h-96 object-cover mb-2"
-                                />
-                              )}
-                              
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-1 text-text-secondary text-sm">
+
+                              <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center space-x-1 text-text-secondary">
                                   <Clock className="w-4 h-4" />
                                   <span>{formatTimestamp(post.created_at)}</span>
                                 </div>
-                                
+
                                 {userId === post.user_id && (
                                   <button
-                                    onClick={() => handleDeletePost(post.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeletePost(post.id)
+                                    }}
                                     className="text-text-secondary hover:text-red-500 transition-colors p-1"
                                     title="Eliminar post"
                                   >
@@ -461,7 +478,7 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -495,6 +512,7 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
             <ActivityFeed 
               onVenueClick={onVenueClick} 
               cityFilter={selectedCity}
+              onUserClick={handleActivityUserClick}
             />
           </div>
           

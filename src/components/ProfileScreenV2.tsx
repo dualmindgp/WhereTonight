@@ -432,24 +432,6 @@ export default function ProfileScreenV2({
           </button>
         </div>
 
-        {/* Premium Card */}
-        <button className="w-full bg-gradient-to-r from-purple-600/20 to-pink-600/20 backdrop-blur-sm rounded-2xl p-5 border border-purple-500/30 hover:border-purple-500/50 transition-all">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
-              <Crown className="w-7 h-7 text-white" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="text-white font-bold text-lg mb-1">
-                WhereTonight <span className="text-purple-400">PREMIUM</span>
-              </div>
-              <div className="text-purple-300 text-sm">
-                $50 de descuentos y ventajas VIP
-              </div>
-            </div>
-            <ChevronRight className="w-6 h-6 text-purple-400" />
-          </div>
-        </button>
-
       </div>
 
       {/* Add Friend Modal */}
