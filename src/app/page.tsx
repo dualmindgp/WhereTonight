@@ -30,6 +30,8 @@ import useSwipe from '@/hooks/useSwipe'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { MapPin, Edit, Home as HomeIcon, Search as SearchIcon, User as UserIcon, MessageCircle } from 'lucide-react'
 import { addPoints, PointAction } from '@/lib/points-system'
+import { handleDailyLogin, handleTicketUsed } from '@/lib/incentives-helper'
+import PointsRewardNotification, { usePointsNotification } from '@/components/PointsRewardNotification'
 
 interface SelectedCity {
   name: string
@@ -40,6 +42,7 @@ interface SelectedCity {
 
 export default function Home() {
   const { venues } = useVenues() // Usar venues desde el context
+  const { notification, showNotification, hideNotification } = usePointsNotification()
   const [user, setUser] = useState<User | null>(null)
   const [hasUsedTicketToday, setHasUsedTicketToday] = useState(false)
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null)
@@ -204,10 +207,31 @@ export default function Home() {
       // Actualizar estado y recargar datos
       setHasUsedTicketToday(true)
       
-      // Añadir puntos al usuario
+      // 🎉 PROCESAR PUNTOS Y BADGES
       try {
-        const result = await addPoints(user.id, PointAction.TICKET_USED)
-        console.log(`¡Ganaste ${result.pointsAdded} puntos! Total: ${result.newTotal}`)
+        const result = await handleTicketUsed(user.id, venueId)
+        
+        // Mostrar notificación principal
+        showNotification(
+          result.totalPoints,
+          result.isFirstTicket ? '¡Tu primer ticket!' : 'Ticket usado',
+          result.isFirstTicket ? 'badge' : 'default'
+        )
+        
+        // Mostrar badges desbloqueados
+        if (result.badges.length > 0) {
+          setTimeout(() => {
+            result.badges.forEach((badge, index) => {
+              setTimeout(() => {
+                showNotification(
+                  badge.points_reward,
+                  `Badge: ${badge.name}`,
+                  'badge'
+                )
+              }, index * 2000)
+            })
+          }, 2000)
+        }
       } catch (error) {
         console.error('Error adding points:', error)
       }
@@ -304,6 +328,24 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       loadProfile()
+      // Procesar login diario para streak y puntos
+      handleDailyLogin(user.id).then(result => {
+        if (result.bonusUnlocked) {
+          showNotification(
+            result.pointsEarned,
+            `¡Bonus de racha de ${result.streak} días!`,
+            'streak'
+          )
+        } else if (result.pointsEarned > 0 && result.streak > 1) {
+          showNotification(
+            result.pointsEarned,
+            `Racha de ${result.streak} días`,
+            'streak'
+          )
+        }
+      }).catch(error => {
+        console.error('Error procesando login diario:', error)
+      })
     }
   }, [user])
 
@@ -559,15 +601,16 @@ export default function Home() {
         <EditProfileModal
           isOpen={showEditProfileModal}
           onClose={() => setShowEditProfileModal(false)}
-          currentProfile={{
-            id: user.id,
-            username: profile.username,
-            bio: profile.bio,
-            avatar_url: profile.avatar_url
-          }}
+          currentProfile={profile}
           onProfileUpdated={handleProfileUpdated}
         />
       )}
+
+      {/* Notificación de Puntos Global */}
+      <PointsRewardNotification
+        {...notification}
+        onClose={hideNotification}
+      />
     </div>
     </>
   )

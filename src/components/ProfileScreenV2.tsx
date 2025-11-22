@@ -10,12 +10,16 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/contexts/LanguageContext'
 import AddFriendModal from './AddFriendModal'
-import EditNameModal from './EditNameModal'
+import EditProfileModal from './EditProfileModal'
 import { VenueWithCount } from '@/lib/database.types'
 import { logger, withErrorHandling } from '@/lib/logger'
 import { useToastContext } from '@/contexts/ToastContext'
 import QRScanner from './QRScanner'
 import { getUserPoints, getLevelFromPoints } from '@/lib/points-system'
+import CompleteProfileModal from './CompleteProfileModal'
+import OnboardingFlow from './OnboardingFlow'
+import ReferralCard from './ReferralCard'
+import BadgesShowcase from './BadgesShowcase'
 
 interface ProfileScreenV2Props {
   user: User
@@ -43,12 +47,33 @@ export default function ProfileScreenV2({
   const { t, locale } = useLanguage()
   const toast = useToastContext()
   const [showAddFriendModal, setShowAddFriendModal] = useState(false)
-  const [showEditNameModal, setShowEditNameModal] = useState(false)
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false)
+  const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false)
+  const [showOnboardingFlow, setShowOnboardingFlow] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [showQRScanner, setShowQRScanner] = useState(false)
   const [points, setPoints] = useState(0)
   const [level, setLevel] = useState(1)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Helper para calcular edad desde birth_date
+  const calculateAge = (birthDateString: string): number | null => {
+    if (!birthDateString) return null
+    
+    const birthDate = new Date(birthDateString)
+    const today = new Date()
+    
+    if (birthDate > today) return null
+    
+    let age = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--
+    }
+    
+    return age
+  }
 
   const uploadAvatar = async (file: File) => {
     setAvatarUploading(true)
@@ -218,44 +243,72 @@ export default function ProfileScreenV2({
     loadStats()
   }, [user.id])
 
+  // Datos del perfil (ahora dinámicos desde la BD)
+  const age = profile?.birth_date ? calculateAge(profile.birth_date) : null
+  const city = profile?.city
+  const musicGenres = profile?.music_genres || []
+  
+  // Verificar si es un usuario nuevo (no ha completado perfil) - mostrar onboarding
+  useEffect(() => {
+    if (profile && !profile.birth_date && !profile.city && (!profile.music_genres || profile.music_genres.length === 0)) {
+      // Si tiene username pero no otros datos, mostrar onboarding
+      const hasBasicData = profile.username && profile.username.trim() !== ''
+      if (hasBasicData) {
+        setShowOnboardingFlow(true)
+      }
+    }
+  }, [profile])
+
   return (
-    <div className="flex-1 bg-dark-primary overflow-y-auto pb-20">
+    <div className="flex-1 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 overflow-y-auto pb-20">
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
         
-        {/* Header - Avatar grande, nombre a la derecha, email abajo */}
-        <div className="bg-dark-card/50 backdrop-blur-sm rounded-2xl p-6 border border-neon-blue/20">
-          <div className="flex items-start gap-4">
-            {/* Columna izquierda: Avatar + Email */}
-            <div className="flex flex-col items-center gap-2">
-              {/* Avatar grande - CLICKEABLE */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={avatarUploading}
-                className="relative group cursor-pointer"
-              >
-                <div className="relative">
+        {/* Header - Nuevo diseño centrado más compacto */}
+        <div className="bg-gradient-to-b from-gray-900/95 via-gray-800/90 to-gray-900/95 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-2xl relative overflow-hidden">
+          {/* Fondo con efecto blur */}
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-900/10 via-transparent to-blue-900/10" />
+          
+          {/* Contenido */}
+          <div className="relative z-10">
+            {/* Botón editar perfil - esquina superior derecha, más separado */}
+            <button
+              onClick={() => setShowEditProfileModal(true)}
+              className="absolute -top-2 -right-2 flex items-center gap-2 px-3 py-2 text-text-secondary hover:text-white transition-colors bg-gray-800/80 rounded-lg hover:bg-gray-700/80"
+            >
+              <Edit2 className="w-4 h-4" />
+              <span className="text-sm">editar</span>
+            </button>
+
+            {/* Avatar Section - Centrado */}
+            <div className="flex flex-col items-center mb-4 mt-6">
+              <div className="relative group">
+                {/* Foto de perfil con borde degradado morado - más pequeña */}
+                <div className="p-1 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 shadow-2xl shadow-purple-500/50">
                   {profile?.avatar_url ? (
                     <img
                       src={profile.avatar_url}
                       alt={username}
-                      className="w-28 h-28 rounded-full object-cover border-4 border-neon-purple/40 transition-all group-hover:border-neon-pink"
+                      className="w-28 h-28 rounded-full object-cover bg-gray-900"
                     />
                   ) : (
-                    <div className="w-28 h-28 rounded-full bg-gradient-to-br from-neon-purple to-neon-pink flex items-center justify-center text-5xl font-bold text-white group-hover:opacity-90 transition-opacity">
+                    <div className="w-28 h-28 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-5xl font-bold text-white">
                       {username.charAt(0).toUpperCase()}
                     </div>
                   )}
-                  
-                  {/* Overlay con cámara */}
-                  <div className="absolute inset-0 rounded-full bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    {avatarUploading ? (
-                      <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Camera className="w-8 h-8 text-white" />
-                    )}
-                  </div>
                 </div>
                 
+                {/* Camera Button Overlay */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  {avatarUploading ? (
+                    <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Camera className="w-9 h-9 text-white" />
+                  )}
+                </button>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -263,24 +316,32 @@ export default function ProfileScreenV2({
                   onChange={handleAvatarSelect}
                   className="hidden"
                 />
-              </button>
+              </div>
 
-            </div>
-
-            {/* Columna derecha: Nombre + Botón editar */}
-            <div className="flex-1 flex items-start justify-between pt-2">
-              <h2 className="text-3xl font-bold text-white">
-                {username}
-              </h2>
-
-              {/* Edit button - Icono de lápiz */}
-              <button
-                onClick={() => setShowEditNameModal(true)}
-                className="p-3 rounded-xl bg-dark-secondary hover:bg-dark-hover border border-neon-blue/30 hover:border-neon-blue/50 transition-all"
-                title="Editar nombre"
-              >
-                <Edit2 className="w-5 h-5 text-neon-blue" />
-              </button>
+              {/* Username and Info - más compacto */}
+              <div className="text-center mt-4 w-full">
+                {/* Nombre grande */}
+                <h1 className="text-3xl font-bold text-white mb-1">
+                  {username}
+                </h1>
+                
+                {/* Username con @ - solo si es diferente al nombre o hay handle personalizado */}
+                {(profile?.custom_handle || username.toLowerCase().replace(/\s+/g, '_') !== username.toLowerCase()) && (
+                  <p className="text-text-secondary text-base mb-2">
+                    @{profile?.custom_handle || username.toLowerCase().replace(/\s+/g, '_')}
+                  </p>
+                )}
+                
+                {/* Edad · Ciudad · Géneros - más compacto */}
+                <p className="text-text-light text-sm">
+                  {age && `${age} años`} 
+                  {age && city && ' · '}
+                  {city && city}
+                  {(age || city) && musicGenres && musicGenres.length > 0 && ' · '}
+                  {musicGenres && musicGenres.length > 0 && musicGenres.slice(0, 3).join(' & ')}
+                  {musicGenres && musicGenres.length > 3 && ` +${musicGenres.length - 3}`}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -366,6 +427,12 @@ export default function ProfileScreenV2({
           </div>
         </div>
 
+        {/* Sistema de Referidos */}
+        <ReferralCard userId={user.id} />
+
+        {/* Badges y Logros */}
+        <BadgesShowcase userId={user.id} variant="compact" />
+
         {/* QR Scanner Button */}
         <button
           onClick={() => setShowQRScanner(true)}
@@ -442,13 +509,15 @@ export default function ProfileScreenV2({
         username={username}
       />
 
-      {/* Edit Name Modal */}
-      <EditNameModal
-        isOpen={showEditNameModal}
-        currentName={username}
-        userId={user.id}
-        onClose={() => setShowEditNameModal(false)}
-        onSuccess={onProfileUpdated}
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={showEditProfileModal}
+        onClose={() => setShowEditProfileModal(false)}
+        currentProfile={profile}
+        onProfileUpdated={() => {
+          onProfileUpdated()
+          toast.success('¡Perfil actualizado!')
+        }}
       />
 
       {/* QR Scanner */}
@@ -460,6 +529,24 @@ export default function ProfileScreenV2({
           toast.success(`Código escaneado: ${code}`)
           setShowQRScanner(false)
         }}
+      />
+
+      {/* Complete Profile Modal */}
+      <CompleteProfileModal
+        isOpen={showCompleteProfileModal}
+        onClose={() => setShowCompleteProfileModal(false)}
+        userId={user.id}
+        currentUsername={username}
+        onProfileUpdated={onProfileUpdated}
+      />
+
+      {/* Onboarding Flow for new users */}
+      <OnboardingFlow
+        isOpen={showOnboardingFlow}
+        onClose={() => setShowOnboardingFlow(false)}
+        userId={user.id}
+        currentUsername={username}
+        onComplete={onProfileUpdated}
       />
     </div>
   )

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase, getAuthRedirectUrl } from '@/lib/supabase'
-import { X, Mail, Lock, Chrome } from 'lucide-react'
+import { applyReferralCode } from '@/lib/referral-system'
+import { X, Mail, Lock, Chrome, Gift } from 'lucide-react'
 
 interface AuthModalProps {
   isOpen: boolean
@@ -16,6 +17,15 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Capturar código de referido de localStorage (guardado desde /invite?code=X)
+    const savedCode = localStorage.getItem('referral_code')
+    if (savedCode) {
+      setReferralCode(savedCode)
+    }
+  }, [])
 
   if (!isOpen) return null
 
@@ -28,7 +38,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     try {
       if (isSignUp) {
         // Registro
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -37,9 +47,23 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         })
         
         if (error) throw error
-        setMessage('¡Cuenta creada! Revisa tu email para confirmar tu cuenta.')
+        
+        // Aplicar código de referido si existe
+        if (data.user?.id && referralCode) {
+          const result = await applyReferralCode(data.user.id, referralCode)
+          if (result.success) {
+            localStorage.removeItem('referral_code') // Limpiar después de usar
+            setMessage('¡Cuenta creada! Has ganado 50 puntos de bienvenida 🎉')
+          } else {
+            setMessage('¡Cuenta creada! Revisa tu email para confirmar tu cuenta.')
+          }
+        } else {
+          setMessage('¡Cuenta creada! Revisa tu email para confirmar tu cuenta.')
+        }
+        
         setEmail('')
         setPassword('')
+        setReferralCode(null)
       } else {
         // Login
         const { error } = await supabase.auth.signInWithPassword({
@@ -95,6 +119,20 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
         {/* Content */}
         <div className="p-6 space-y-4">
+          {/* Código de Referido Banner */}
+          {isSignUp && referralCode && (
+            <div className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-pink-500 to-purple-500 p-2 rounded-lg">
+                  <Gift className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-bold text-sm">¡Código de invitación aplicado!</p>
+                  <p className="text-white/70 text-xs">Ganarás 50 puntos al registrarte</p>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Google Auth */}
           <button
             onClick={handleGoogleAuth}

@@ -9,6 +9,8 @@ import FriendStories from './FriendStories'
 import StoryViewer from './StoryViewer'
 import { SocialPostWithUser } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
+import { handleStoryCreated } from '@/lib/incentives-helper'
+import PointsRewardNotification, { usePointsNotification } from './PointsRewardNotification'
 
 interface City {
   name: string
@@ -23,6 +25,7 @@ interface SocialFeedProps {
 
 export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
   const { t } = useLanguage()
+  const { notification, showNotification, hideNotification } = usePointsNotification()
   const [selectedCity, setSelectedCity] = useState<City | null>(null)
   const [posts, setPosts] = useState<SocialPostWithUser[]>([])
   const [newPostContent, setNewPostContent] = useState('')
@@ -140,6 +143,39 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
         console.error('Error creating post:', error)
         alert('Error al crear la publicación. Por favor, intenta de nuevo.')
       } else {
+        // 🎉 PROCESAR PUNTOS Y BADGES
+        try {
+          const result = await handleStoryCreated(userId, {
+            hasPhoto: !!selectedImage,
+            hasVenue: false, // En el futuro se puede agregar venue_id
+          })
+          
+          // Mostrar notificación principal
+          showNotification(
+            result.totalPoints,
+            result.isFirstStory ? '¡Tu primera historia!' : 'Historia creada',
+            result.isFirstStory ? 'badge' : 'default'
+          )
+          
+          // Mostrar badges desbloqueados
+          if (result.badges.length > 0) {
+            setTimeout(() => {
+              result.badges.forEach((badge, index) => {
+                setTimeout(() => {
+                  showNotification(
+                    badge.points_reward,
+                    `Badge: ${badge.name}`,
+                    'badge'
+                  )
+                }, index * 2000)
+              })
+            }, 2000)
+          }
+        } catch (pointsError) {
+          console.error('Error procesando puntos:', pointsError)
+          // No fallar la creación del post por error en puntos
+        }
+        
         setNewPostContent('')
         setSelectedImage(null)
         setShowNewPost(false)
@@ -527,6 +563,12 @@ export default function SocialFeed({ onVenueClick, userId }: SocialFeedProps) {
           )}
         </div>
       </div>
+
+      {/* Notificación de Puntos */}
+      <PointsRewardNotification
+        {...notification}
+        onClose={hideNotification}
+      />
     </div>
   )
 }
